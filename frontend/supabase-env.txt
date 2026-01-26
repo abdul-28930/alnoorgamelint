@@ -1,0 +1,9 @@
+# Copy these to your .env.local file:
+
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# Get these values from your Supabase dashboard:
+# 1. Go to your Supabase project
+# 2. Settings > API
+# 3. Copy the URL and anon key 

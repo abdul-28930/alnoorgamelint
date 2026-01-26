@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cp-yellow: #FCEE0D;
+  --cp-cyan: #00FFF7;
+  --cp-magenta: #9413FF;
+  --cp-black: #0D0D0D;
+  --cp-gray: #101820;
+  --radius-angle: 6px;
+  --transition-fast: 200ms cubic-bezier(0.4,0,0.2,1);
+  --glow: 0 0 8px var(--cp-yellow);
+}
+
+body {
+  background-color: var(--cp-black);
+  color: white;
+  font-family: 'Rajdhani', 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1A1A1A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FCEE0D, #00FFF7);
+  border-radius: 4px;
+  box-shadow: 0 0 6px #FCEE0D80;
+}
+
+/* Horizontal scrollbar for charts */
+.scrollbar-horizontal::-webkit-scrollbar {
+  height: 8px;
+}
+
+.scrollbar-horizontal::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.3);
+  border-radius: 4px;
+}
+
+.scrollbar-horizontal::-webkit-scrollbar-thumb {
+  background: linear-gradient(to right, #00FFF7, #FCEE0D);
+  border-radius: 4px;
+  box-shadow: 0 0 6px #00FFF780;
+}
+
+.scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to right, #00FFF7, #FCEE0D);
+  box-shadow: 0 0 10px #FCEE0D80;
+}
+
+/* Angled clip-path utility */
+.clip-angled {
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+} 
