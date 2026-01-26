@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+supabase
+python-jose
+asyncpg
+pydantic
+python-dateutil
+python-dotenv
+APScheduler
+reportlab

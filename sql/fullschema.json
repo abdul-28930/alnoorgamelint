@@ -1,0 +1,762 @@
+[
+    {
+      "table_name": "admin_settings",
+      "column_name": "id",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": "1",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "admin_settings",
+      "column_name": "admin_emails",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": "'[]'::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "admin_settings",
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "column_default": "CURRENT_TIMESTAMP",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "admin_settings",
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "YES",
+      "column_default": "CURRENT_TIMESTAMP",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "station_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "start_at",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "end_at",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "paid",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "false",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": "'UPCOMING'::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "total_amount",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0.00",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "duration_hours",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": "1",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "booking_notes",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "payment_method",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "cancelled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "start_time",
+      "data_type": "time without time zone",
+      "is_nullable": "NO",
+      "column_default": "'10:00:00'::time without time zone",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "end_time",
+      "data_type": "time without time zone",
+      "is_nullable": "NO",
+      "column_default": "'11:00:00'::time without time zone",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "user_count",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": "1",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "reminder_1h_sent",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "false",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "reminder_30m_sent",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "false",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "reminder_5m_sent",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "false",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "advance_amount",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0.00",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "advance_paid",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "false",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "payment_status",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": "'UNPAID'::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "remaining_amount",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0.00",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "amount_paid",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "food_items",
+      "data_type": "json",
+      "is_nullable": "YES",
+      "column_default": "'[]'::json",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "food_total",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0.00",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "refund_amount",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0.00",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "bookings",
+      "column_name": "cancellation_fee",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": "0.00",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "code",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "type",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "discount_percentage",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "created_for",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "used_by",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "used_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "true",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "coupons",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "points_cost",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "discount_percentage",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": "''::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "true",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_rewards",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "type",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "points",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "booking_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "points_transactions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "type",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "hourly_rate",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "YES",
+      "column_default": "true",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": "'Gaming station with premium setup'::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "features",
+      "data_type": "jsonb",
+      "is_nullable": "YES",
+      "column_default": "'[]'::jsonb",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "stations",
+      "column_name": "image_url",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournament_registrations",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournament_registrations",
+      "column_name": "tournament_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournament_registrations",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournament_registrations",
+      "column_name": "registered_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "game",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "platform",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "max_players",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "tournament_type",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": "'draft'::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "banner_image",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "tournaments",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "username",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "full_name",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "profile_pic_url",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null,
+      "character_maximum_length": 20
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "referral_code",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": "concat('REF', \"substring\"((gen_random_uuid())::text, 1, 8))",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "total_referrals",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": "0",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_profiles",
+      "column_name": "points_balance",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": "0",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_roles",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_roles",
+      "column_name": "role",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": "'user'::text",
+      "character_maximum_length": null
+    },
+    {
+      "table_name": "user_roles",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "character_maximum_length": null
+    }
+  ]
