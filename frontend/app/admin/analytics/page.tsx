@@ -230,7 +230,7 @@ export default function AdminAnalytics() {
     try {
       const { data: allBookings } = await bookings.getAllBookings()
       const dates = Array.from(new Set(
-        allBookings?.map(booking => booking.start_at.split('T')[0]) || []
+        (allBookings ?? []).map((booking: { start_at: string }) => booking.start_at.split('T')[0])
       ))
       setBookingDates(dates)
     } catch (error) {
