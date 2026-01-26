@@ -6,7 +6,7 @@ game/
 .env.local
 .env.production.local
 .env.development.local
-
+ 
 # IDE files
 .vscode/
 .idea/
