@@ -229,7 +229,7 @@ export default function AdminAnalytics() {
   const loadBookingDates = async () => {
     try {
       const { data: allBookings } = await bookings.getAllBookings()
-      const dates = Array.from(new Set(
+      const dates = Array.from(new Set<string>(
         (allBookings ?? []).map((booking: { start_at: string }) => booking.start_at.split('T')[0])
       ))
       setBookingDates(dates)

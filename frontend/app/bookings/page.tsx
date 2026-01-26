@@ -37,7 +37,7 @@ export default function BookingsPage() {
       setUser(data.user)
       
       const { data: bookingData } = await bookings.getUserBookings(data.user.id)
-      const uniqueBookings = Array.from(new Map((bookingData || []).map(b => [b.id, b])).values())
+      const uniqueBookings = Array.from(new Map((bookingData || []).map((b: any) => [b.id, b])).values())
       setUserBookings(uniqueBookings)
       setLoading(false)
     }
@@ -79,7 +79,7 @@ export default function BookingsPage() {
         setCancellingBooking(null)
         // Reload bookings
         const { data: bookingData } = await bookings.getUserBookings(user.id)
-        const uniqueBookings = Array.from(new Map((bookingData || []).map(b => [b.id, b])).values())
+        const uniqueBookings = Array.from(new Map((bookingData || []).map((b: any) => [b.id, b])).values())
         setUserBookings(uniqueBookings)
       }
     } catch (error) {
