@@ -1,6 +1,7 @@
 import { cached, route } from '@/server/http'
-import { listOpenTournaments } from '@/server/services/catalog'
+import { listPublicTournaments } from '@/server/services/tournaments'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = route(async () => cached(await listOpenTournaments()))
+// short cache: registration counts are shown live
+export const GET = route(async () => cached(await listPublicTournaments(), 5))

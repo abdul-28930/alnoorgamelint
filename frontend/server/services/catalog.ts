@@ -32,10 +32,6 @@ export async function listRewards(db: SupabaseClient = getSupabase()) {
   return unwrap(await db.from('points_rewards').select('*').eq('active', true).order('points_cost'), 'rewards')
 }
 
-export async function listOpenTournaments(db: SupabaseClient = getSupabase()) {
-  return unwrap(await db.from('tournaments').select('*').eq('status', 'open').order('created_at', { ascending: false }), 'tournaments')
-}
-
 /** One database call instead of ~24 x stations queries. */
 export async function availabilityByType(type: string, date: string, db: SupabaseClient = getSupabase()) {
   return unwrap(await db.rpc('get_availability_by_type', { p_type: type, p_date: date }), 'availability')
