@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { apiFetch } from '@/lib/api'
 
@@ -70,7 +69,6 @@ export default function AdminCouponsPage() {
   return (
     <AdminGuard>
       <div className="min-h-screen bg-black text-white">
-        <AdminNavBar />
         
         <main className="p-6">
           <div className="max-w-7xl mx-auto">
