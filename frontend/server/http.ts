@@ -43,6 +43,13 @@ export function route<C = unknown>(handler: Handler<C>) {
   }
 }
 
+/** JSON response that shared caches (Vercel CDN) may keep briefly. For rarely-changing public reads. */
+export function cached(data: unknown, seconds = 30): Response {
+  return NextResponse.json(data, {
+    headers: { 'Cache-Control': `public, s-maxage=${seconds}, stale-while-revalidate=${seconds * 4}` },
+  })
+}
+
 export function formatZod(err: ZodError): string {
   return err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ')
 }
