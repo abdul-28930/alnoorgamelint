@@ -291,9 +291,10 @@ export const profiles = {
         method: 'POST'
       })
       const result = await response.json()
-      return { data: result.available, error: null }
+      if (!response.ok) return { data: null, error: { message: result.detail || 'Failed to check username' } }
+      return { data: result.available as boolean, error: null }
     } catch (error) {
-      return { data: false, error: { message: 'Failed to check username' } }
+      return { data: null, error: { message: 'Failed to check username' } }
     }
   },
   
