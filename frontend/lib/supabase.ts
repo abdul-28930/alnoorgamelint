@@ -339,22 +339,22 @@ export const storage = {
 // Admin helpers
 export const admin = {
   // Check if current user is admin
+  // Asks the server, which holds the real role rules. (The old version read admin_settings from the browser and
+  // called auth.getUser() from inside the auth-change callback, which could wait forever on Supabase's auth lock.)
   checkAccess: async () => {
-    if (!supabase) return { data: false, error: { message: 'Supabase not configured' } }
-    
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { data: false, error: { message: 'Not authenticated' } }
-    
-    const { data: settings } = await supabase
-      .from('admin_settings')
-      .select('admin_emails')
-      .single()
-    
-    if (!settings?.admin_emails) return { data: false, error: { message: 'No admin emails configured' } }
-    
-    const adminEmails = JSON.parse(settings.admin_emails)
-    const mine = (user.email ?? '').toLowerCase()
-    return { data: Array.isArray(adminEmails) && adminEmails.some((e: unknown) => typeof e === 'string' && e.toLowerCase() === mine), error: null }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
+    try {
+      const response = await apiFetch('/api/v1/admin/access', { signal: controller.signal })
+      if (response.status === 401) return { data: false, error: { message: 'Not authenticated' } }
+      if (!response.ok) return { data: false, error: { message: 'Could not check access' } }
+      const body = await response.json()
+      return { data: body.is_admin === true, error: null }
+    } catch {
+      return { data: false, error: { message: 'Could not check access' } }
+    } finally {
+      clearTimeout(timer)
+    }
   },
 
   // Get all users for admin panel

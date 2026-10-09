@@ -114,7 +114,7 @@ export function AdminShell({ children, currentPath, skipAccessCheck = false }: {
       }
     }
     check()
-    const { data: { subscription } } = auth.onAuthChange(() => check())
+    const { data: { subscription } } = auth.onAuthChange(() => { setTimeout(check, 0) }) // never await Supabase calls inside its own callback
     return () => {
       cancelled = true
       subscription?.unsubscribe()
