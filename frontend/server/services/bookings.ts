@@ -40,11 +40,23 @@ const RPC_ERRORS: Record<string, [number, string]> = {
   INVALID_FOOD_TOTAL: [400, 'Invalid food total'],
   BOOKING_NOT_FOUND: [404, 'Booking not found'],
   NOT_CANCELLABLE: [400, 'Only upcoming bookings can be cancelled'],
+  ALREADY_CHECKED_IN: [400, 'Booking already checked in'],
+  STATION_BUSY: [400, 'Station already has an active booking'],
+  NOT_CHECKABLE: [400, 'Cancelled bookings cannot be checked in'],
+  TIMER_NOT_RUNNING: [400, 'Timer is not running'],
+  NOT_EXTENDABLE: [400, 'Only active bookings can be extended'],
+  ALREADY_ACTIVE: [400, 'Card is already active'],
+  CARD_NOT_FOUND: [404, 'Prepaid card not found'],
 }
 
-export function mapRpcError(error: { message?: string } | null | undefined, fallback: string): ApiError {
-  const code = Object.keys(RPC_ERRORS).find((c) => error?.message?.includes(c))
-  if (code) return new ApiError(...RPC_ERRORS[code])
+export function mapRpcError(
+  error: { message?: string } | null | undefined,
+  fallback: string,
+  overrides: Record<string, [number, string]> = {},
+): ApiError {
+  const table = { ...RPC_ERRORS, ...overrides }
+  const code = Object.keys(table).find((c) => error?.message?.includes(c))
+  if (code) return new ApiError(...table[code])
   console.error(`${fallback}:`, error)
   return new ApiError(500, fallback)
 }

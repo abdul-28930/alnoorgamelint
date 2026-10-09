@@ -83,6 +83,11 @@ export async function getRole(userId: string, email: string): Promise<Role> {
   return role
 }
 
+/** Call after changing admin emails so the change applies immediately on this instance. */
+export function clearRoleCache(): void {
+  roleCache.clear()
+}
+
 export function bearerToken(req: Request): string {
   const header = req.headers.get('authorization') ?? ''
   const [scheme, token] = header.split(' ')
