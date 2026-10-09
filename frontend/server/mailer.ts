@@ -68,3 +68,24 @@ export function bookingConfirmationHtml(d: BookingEmailDetails): string {
 export function sendBookingConfirmation(to: string, details: BookingEmailDetails): Promise<MailResult> {
   return sendEmail(to, 'Booking Confirmed - Neo Gaming Cafe', bookingConfirmationHtml(details))
 }
+
+export type ReminderKind = '1h' | '30m' | '5m'
+export const REMINDER_MINUTES: Record<ReminderKind, number> = { '1h': 60, '30m': 30, '5m': 5 }
+
+export function reminderHtml(kind: ReminderKind, d: { station_name: string | null; start_time: string }): string {
+  const minutes = REMINDER_MINUTES[kind]
+  return `<html><body style="font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+    <h1 style="color: #00ffff; text-align: center;">Neo Gaming Cafe</h1>
+    <h2 style="color: #333; text-align: center;">Reminder: Session in ${minutes} minutes! ⏰</h2>
+    <div style="background: #1a1a1a; color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <p><strong>Station:</strong> ${escapeHtml(d.station_name ?? 'N/A')}</p>
+      <p><strong>Time:</strong> ${escapeHtml(d.start_time)}</p>
+    </div>
+    <p style="text-align: center; color: #666;">Please arrive 5 minutes early! 🎮</p>
+  </div></body></html>`
+}
+
+export function sendReminderEmail(to: string, kind: ReminderKind, d: { station_name: string | null; start_time: string }): Promise<MailResult> {
+  return sendEmail(to, `Gaming Session Starts in ${REMINDER_MINUTES[kind]} Minutes!`, reminderHtml(kind, d))
+}
