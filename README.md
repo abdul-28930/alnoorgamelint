@@ -198,7 +198,8 @@ Run these in the Supabase SQL editor, in order, each in its own new query tab:
 ├── 04_seed.sql              # Admin email, stations, rewards (run once)
 ├── 05_backend_rpcs.sql      # Atomic booking / cancel / check-in / timer functions
 ├── 06_admin_rpcs.sql        # Extend booking, confirm prepaid card
-└── 07_reminders_rpcs.sql    # Reminder and status refresh functions
+├── 07_reminders_rpcs.sql    # Reminder and status refresh functions
+└── 08_tournaments.sql       # Tournaments: entrants, teams, matches, result functions (see documentation/tournaments.md)
 ```
 (`sql/00_full_setup.sql` is the older single-file version of `01`-`04`.)
 
@@ -210,7 +211,7 @@ Run these in the Supabase SQL editor, in order, each in its own new query tab:
 
 ### Database Setup
 1. Create a new Supabase project
-2. Run `sql/setup/01_tables.sql` to `07_reminders_rpcs.sql` in order (see above)
+2. Run `sql/setup/01_tables.sql` to `08_tournaments.sql` in order (see above)
 3. Put your admin email in `04_seed.sql` before running it (or later: `UPDATE admin_settings SET admin_emails='["you@example.com"]' WHERE id=1;`)
 
 ### App Setup (website and API together)
