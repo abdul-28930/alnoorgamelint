@@ -1,7 +1,7 @@
 # Tournaments
 
 Staff create tournaments, players (or teams) register, staff generate the bracket, report results and the winner
-moves on automatically. This page describes the rules and the data model; the screens and API arrive in later steps
+moves on automatically. This page describes the rules and the data model; public pages arrive in a later step
 (see "Status" at the bottom).
 
 ## Formats (first release)
@@ -55,9 +55,25 @@ All are executable by the server only. They raise short codes that the API turns
 | `undo_match_result(match)` | Takes a result back and removes the entrants it advanced | `MATCH_NOT_FOUND`, `NOT_ACTIVE`, `BYE_MATCH`, `NOT_COMPLETED`, `NEXT_MATCH_STARTED` |
 | `record_tournament_view(tournament, visitor)` | Counts a visitor once per day (IST), returns the total | `INVALID_VISITOR`, `TOURNAMENT_NOT_FOUND` |
 
+## Admin API (`/api/v1/admin`)
+
+| Method and path | Who | Does |
+|---|---|---|
+| `GET /tournaments`, `GET /tournaments/{id}` | staff, admin | List with live counts; full detail (entrants, matches, standings, champion) |
+| `POST /tournaments`, `PUT`, `DELETE /tournaments/{id}` | admin | Create, edit (structural settings lock once the bracket exists), delete (only before the bracket) |
+| `PUT /tournaments/{id}/status?status=` | admin | `draft -> open <-> paused -> active`; completion is automatic |
+| `POST /tournaments/{id}/entrants` | staff, admin | Add a walk-in or a user by username; over capacity goes to the waitlist |
+| `PUT`, `DELETE /tournaments/{id}/entrants/{entrantId}` | staff, admin | Check in, mark paid, withdraw, disqualify, re-seed. Leaving promotes the waitlist (before start) or awards walkovers (after) |
+| `POST /tournaments/{id}/bracket/preview`, `POST .../bracket` | admin | Preview or generate the bracket, optionally with a manual `order` |
+| `PUT /tournament-matches/{id}` | staff, admin | Go live, schedule, station, notes |
+| `PUT`, `DELETE /tournament-matches/{id}/result` | staff, admin | Report (won / lost, scores, draw in leagues, walkover) or undo |
+
+Screens: `/admin/tournaments` (list, create, live counts) and `/admin/tournaments/{id}` (entrants, seeding, preview,
+bracket or table with Won / Lost / no-show buttons, undo, champion banner). The page refreshes every 8 seconds.
+
 ## Status
 
-1. **Foundation (this step)**: database, bracket and standings engine, tests.
-2. Admin screens and API: create / edit, registrations, seeding, generate, report results, undo, walkovers.
+1. **Foundation**: database, bracket and standings engine, tests. Done.
+2. **Admin screens and API**: this step. Done.
 3. Public pages and sign-up: tournament list and detail with bracket and standings, register / withdraw, teams and invitations, live registration count, view count.
 4. Extras: notifications, TV mode, station scheduling, group stage + playoffs.

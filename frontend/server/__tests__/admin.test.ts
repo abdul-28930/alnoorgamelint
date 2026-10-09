@@ -9,8 +9,8 @@ import {
 } from '../services/admin/bookings'
 import { checkin, extendHour, startGrace, startTimer, stopTimer } from '../services/admin/operations'
 import {
-  confirmCard, createCoupon, createCouponQuery, foodItemsSchema, listCards, replaceFoodItems, setAdminEmails, setTournamentStatus,
-  deletePlan, tournamentRegistrations, tournamentSchema,
+  confirmCard, createCoupon, createCouponQuery, foodItemsSchema, listCards, replaceFoodItems, setAdminEmails,
+  deletePlan,
 } from '../services/admin/catalog'
 import { summary } from '../services/admin/stats'
 
@@ -215,12 +215,8 @@ describe('catalog admin', () => {
     await expect(deletePlan('p', fakeDb({ tables: { prepaid_plans: { data: [] } } }).db)).rejects.toMatchObject({ status: 404 })
     await expect(deletePlan('p', fakeDb({ tables: { prepaid_plans: { error: { code: '23503' } } } }).db)).rejects.toMatchObject({ message: expect.stringContaining('deactivate') })
     await expect(confirmCard('c', fakeDb({ rpcs: { confirm_prepaid_card: { error: { message: 'ALREADY_ACTIVE' } } } }).db)).rejects.toMatchObject({ status: 400 })
-    await expect(setTournamentStatus('t', 'open', fakeDb({ tables: { tournaments: { data: [] } } }).db)).rejects.toMatchObject({ status: 404 })
-    expect(tournamentSchema.parse({ name: 'N', game: 'G', platform: 'PC', max_players: 8, tournament_type: 'league' }).description).toBe('')
-    expect(() => tournamentSchema.parse({ name: 'N', game: 'G', platform: 'XBOX', max_players: 8, tournament_type: 'league' })).toThrow()
     const { db } = fakeDb({ tables: { user_prepaid_cards: { data: [{ id: 'c', user_id: 'u' }] }, user_profiles: { data: [{ user_id: 'u', username: 'ann' }] }, tournament_registrations: { data: [{ user_id: 'u' }] } } })
     expect((await listCards('PENDING', db))[0].user_profiles).toEqual({ user_id: 'u', username: 'ann' })
-    expect((await tournamentRegistrations('t', db))[0].user_profiles).toEqual({ user_id: 'u', username: 'ann' })
   })
   it('stats pass IST "today" to the database', async () => {
     vi.useFakeTimers().setSystemTime(new Date('2030-01-01T20:00:00Z')) // already the 2nd in IST

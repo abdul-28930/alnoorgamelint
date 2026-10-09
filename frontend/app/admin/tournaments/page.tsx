@@ -1,250 +1,150 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { AdminGuard } from '@/components/ui/admin-guard'
-import { apiFetch } from '@/lib/api'
+import { api, STATUS_STYLE, type TournamentRow } from '@/lib/tournaments'
 
+const blank = {
+  name: '', game: '', platform: 'PC', tournament_type: 'knockout', max_players: 8, team_size: 1, best_of: 1,
+  third_place_match: false, double_round_robin: false, seeding: 'random', entry_fee: 0, prize_pool: 0,
+  prize_details: '', rules: '', description: '', starts_at: '', registration_closes_at: '',
+}
+
+const input = 'w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white'
 
 export default function AdminTournamentsPage() {
-  const [tournaments, setTournaments] = useState<any[]>([])
+  const [rows, setRows] = useState<TournamentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    game: '',
-    platform: 'PC',
-    max_players: 8,
-    tournament_type: 'knockout',
-    description: ''
-  })
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({ ...blank })
+  const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    fetchTournaments()
-  }, [])
-
-  const fetchTournaments = async () => {
+  const load = useCallback(async () => {
     try {
-      const { data: { session } } = await (await import('@/lib/supabase')).auth.getSession()
-      const token = session?.access_token
-      
-      if (!token) return
-      
-      const response = await apiFetch(`/api/v1/admin/tournaments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setTournaments(Array.isArray(data) ? data : [])
-        setError(null)
-      } else {
-        const errorData = await response.json()
-        setError(errorData.detail || 'Failed to fetch tournaments')
-      }
-    } catch (error) {
-      console.error('Failed to fetch tournaments:', error)
+      setRows(await api.list())
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const createTournament = async () => {
+  // live counts: refresh every 10 s
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 10000)
+    return () => clearInterval(t)
+  }, [load])
+
+  const set = (k: keyof typeof blank, v: string | number | boolean) => setForm((f) => ({ ...f, [k]: v }))
+
+  const create = async () => {
+    setBusy(true)
     try {
-      const { data: { session } } = await (await import('@/lib/supabase')).auth.getSession()
-      const token = session?.access_token
-      
-      const response = await apiFetch(`/api/v1/admin/tournaments`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      })
-      
-      if (response.ok) {
-        setShowCreateForm(false)
-        setFormData({ name: '', game: '', platform: 'PC', max_players: 8, tournament_type: 'knockout', description: '' })
-        setError(null)
-        fetchTournaments()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.detail || 'Failed to create tournament')
-      }
-    } catch (error) {
-      console.error('Failed to create tournament:', error)
+      const body: Record<string, unknown> = { ...form }
+      for (const k of ['starts_at', 'registration_closes_at', 'prize_details', 'rules'] as const) if (!body[k]) delete body[k]
+      await api.create(body)
+      setCreating(false)
+      setForm({ ...blank })
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
     }
   }
 
-  const updateStatus = async (tournamentId: string, status: string) => {
-    try {
-      const { data: { session } } = await (await import('@/lib/supabase')).auth.getSession()
-      const token = session?.access_token
-      
-      const response = await apiFetch(`/api/v1/admin/tournaments/${tournamentId}/status?status=${status}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      if (response.ok) {
-        setError(null)
-        fetchTournaments()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.detail || 'Failed to update status')
-      }
-    } catch (error) {
-      console.error('Failed to update status:', error)
-    }
-  }
+  const isKo = form.tournament_type === 'knockout'
 
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-black text-white">
-        
-        <main className="p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold">Tournament Management</h1>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="bg-cyan-500 text-black px-4 py-2 rounded hover:bg-yellow-400"
-              >
-                Create Tournament
+      <div className="min-h-screen bg-black p-6 text-white">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-3xl font-bold">Tournaments</h1>
+            <button onClick={() => setCreating((v) => !v)} className="rounded bg-cyan-500 px-4 py-2 font-semibold text-black hover:bg-cyan-400">
+              {creating ? 'Close' : '+ New tournament'}
+            </button>
+          </div>
+
+          {error && <div className="mb-6 rounded-lg border border-red-600 bg-red-900/50 p-4 text-red-300">{error}</div>}
+
+          {creating && (
+            <div className="mb-8 rounded-lg bg-gray-900 p-6">
+              <h2 className="mb-4 text-xl font-bold">Create tournament</h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <label className="md:col-span-2">Name<input className={input} value={form.name} onChange={(e) => set('name', e.target.value)} /></label>
+                <label>Game<input className={input} value={form.game} onChange={(e) => set('game', e.target.value)} /></label>
+                <label>Platform
+                  <select className={input} value={form.platform} onChange={(e) => set('platform', e.target.value)}>
+                    {['PC', 'PS5', 'PS4', 'Xbox', 'Switch', 'Mobile'].map((p) => <option key={p}>{p}</option>)}
+                  </select>
+                </label>
+                <label>Format
+                  <select className={input} value={form.tournament_type} onChange={(e) => set('tournament_type', e.target.value)}>
+                    <option value="knockout">Single elimination</option>
+                    <option value="league">Round robin</option>
+                  </select>
+                </label>
+                <label>Max {form.team_size > 1 ? 'teams' : 'players'}<input type="number" min={2} className={input} value={form.max_players} onChange={(e) => set('max_players', Number(e.target.value))} /></label>
+                <label>Team size (1 = solo)<input type="number" min={1} max={10} className={input} value={form.team_size} onChange={(e) => set('team_size', Number(e.target.value))} /></label>
+                <label>Best of
+                  <select className={input} value={form.best_of} onChange={(e) => set('best_of', Number(e.target.value))}>
+                    {[1, 3, 5, 7].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
+                <label>Seeding
+                  <select className={input} value={form.seeding} onChange={(e) => set('seeding', e.target.value)}>
+                    <option value="random">Random</option>
+                    <option value="manual">Manual (staff order)</option>
+                  </select>
+                </label>
+                <label>Entry fee (₹, shown only)<input type="number" min={0} className={input} value={form.entry_fee} onChange={(e) => set('entry_fee', Number(e.target.value))} /></label>
+                <label>Prize pool (₹)<input type="number" min={0} className={input} value={form.prize_pool} onChange={(e) => set('prize_pool', Number(e.target.value))} /></label>
+                <label>Starts (IST)<input type="datetime-local" className={input} value={form.starts_at} onChange={(e) => set('starts_at', e.target.value)} /></label>
+                <label>Registration closes (IST)<input type="datetime-local" className={input} value={form.registration_closes_at} onChange={(e) => set('registration_closes_at', e.target.value)} /></label>
+                {isKo ? (
+                  <label className="flex items-center gap-2 pt-6"><input type="checkbox" checked={form.third_place_match} onChange={(e) => set('third_place_match', e.target.checked)} />Third-place match</label>
+                ) : (
+                  <label className="flex items-center gap-2 pt-6"><input type="checkbox" checked={form.double_round_robin} onChange={(e) => set('double_round_robin', e.target.checked)} />Home and away (play twice)</label>
+                )}
+                <label className="md:col-span-3">Description<textarea rows={2} className={input} value={form.description} onChange={(e) => set('description', e.target.value)} /></label>
+                <label className="md:col-span-3">Prize details<input className={input} value={form.prize_details} onChange={(e) => set('prize_details', e.target.value)} /></label>
+                <label className="md:col-span-3">Rules<textarea rows={3} className={input} value={form.rules} onChange={(e) => set('rules', e.target.value)} /></label>
+              </div>
+              <button disabled={busy || !form.name || !form.game} onClick={create} className="mt-4 rounded bg-green-600 px-5 py-2 font-semibold disabled:opacity-50">
+                {busy ? 'Creating…' : 'Create as draft'}
               </button>
             </div>
+          )}
 
-            {error && (
-              <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 mb-6">
-                <p className="text-red-400">{error}</p>
-              </div>
-            )}
-
-            {/* Create Form */}
-            {showCreateForm && (
-              <div className="bg-gray-900 rounded-lg p-6 mb-6">
-                <h2 className="text-xl font-bold mb-4">Create Tournament</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input
-                    type="text"
-                    placeholder="Tournament Name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Game"
-                    value={formData.game}
-                    onChange={(e) => setFormData({...formData, game: e.target.value})}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
-                  />
-                  <select
-                    title="Platform"
-                    value={formData.platform}
-                    onChange={(e) => setFormData({...formData, platform: e.target.value})}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
-                  >
-                    <option value="PC">PC</option>
-                    <option value="PS5">PS5</option>
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="Max Players"
-                    value={formData.max_players}
-                    onChange={(e) => setFormData({...formData, max_players: parseInt(e.target.value)})}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
-                  />
-                  <select
-                    title="Tournament Type"
-                    value={formData.tournament_type}
-                    onChange={(e) => setFormData({...formData, tournament_type: e.target.value})}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-2"
-                  >
-                    <option value="knockout">Knockout</option>
-                    <option value="league">League</option>
-                  </select>
-                  <textarea
-                    placeholder="Description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-2 md:col-span-2"
-                  />
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={createTournament} className="bg-green-600 text-white px-4 py-2 rounded">Create</button>
-                  <button onClick={() => setShowCreateForm(false)} className="bg-gray-600 text-white px-4 py-2 rounded">Cancel</button>
-                </div>
-              </div>
-            )}
-
-            {/* Tournament List */}
-            {loading ? (
-              <div className="text-center py-8">Loading tournaments...</div>
-            ) : (
-              <div className="bg-gray-900 rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-800">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Name</th>
-                      <th className="px-4 py-3 text-left">Game</th>
-                      <th className="px-4 py-3 text-left">Platform</th>
-                      <th className="px-4 py-3 text-left">Players</th>
-                      <th className="px-4 py-3 text-left">Type</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tournaments.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
-                          No tournaments found. Create your first tournament!
-                        </td>
-                      </tr>
-                    ) : (
-                      tournaments.map((tournament: any) => (
-                        <tr key={tournament.id} className="border-b border-gray-700">
-                          <td className="px-4 py-3 font-semibold">{tournament.name}</td>
-                          <td className="px-4 py-3">{tournament.game}</td>
-                          <td className="px-4 py-3">{tournament.platform}</td>
-                          <td className="px-4 py-3">{tournament.max_players}</td>
-                          <td className="px-4 py-3">{tournament.tournament_type}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              tournament.status === 'open' ? 'bg-green-600' :
-                              tournament.status === 'draft' ? 'bg-gray-600' :
-                              tournament.status === 'paused' ? 'bg-yellow-600' :
-                              'bg-blue-600'
-                            }`}>
-                              {tournament.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              title="Update Status"
-                              value={tournament.status}
-                              onChange={(e) => updateStatus(tournament.id, e.target.value)}
-                              className="bg-gray-700 text-white text-xs px-2 py-1 rounded"
-                            >
-                              <option value="draft">Draft</option>
-                              <option value="open">Open</option>
-                              <option value="paused">Paused</option>
-                              <option value="active">Active</option>
-                              <option value="completed">Completed</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </main>
+          {loading ? (
+            <p className="text-gray-400">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-gray-400">No tournaments yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {rows.map((t) => (
+                <Link key={t.id} href={`/admin/tournaments/${t.id}`} className="block rounded-lg border border-gray-800 bg-gray-900 p-5 transition hover:border-cyan-500">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <h2 className="text-lg font-bold">{t.name}</h2>
+                    <span className={`rounded px-2 py-0.5 text-xs uppercase ${STATUS_STYLE[t.status]}`}>{t.status}</span>
+                  </div>
+                  <p className="text-sm text-gray-400">{t.game} · {t.platform} · {t.tournament_type === 'knockout' ? 'Single elimination' : 'Round robin'}{t.team_size > 1 ? ` · teams of ${t.team_size}` : ''}</p>
+                  <div className="mt-4 grid grid-cols-3 text-center">
+                    <div><div className="text-2xl font-bold text-cyan-400">{t.registered_count}/{t.max_players}</div><div className="text-xs text-gray-400">registered</div></div>
+                    <div><div className="text-2xl font-bold text-yellow-400">{t.waitlist_count}</div><div className="text-xs text-gray-400">waitlist</div></div>
+                    <div><div className="text-2xl font-bold text-purple-400">{t.view_count}</div><div className="text-xs text-gray-400">views</div></div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </AdminGuard>
   )
-} 
+}

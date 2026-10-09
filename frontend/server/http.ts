@@ -64,6 +64,19 @@ export async function parseJson<S extends z.ZodTypeAny>(req: Request, schema: S)
   return schema.parse(body)
 }
 
+/** Like parseJson, but a request with no body at all is treated as `{}` (for actions whose options are all optional). */
+export async function parseJsonOptional<S extends z.ZodTypeAny>(req: Request, schema: S): Promise<z.infer<S>> {
+  const text = await req.text()
+  if (!text.trim()) return schema.parse({})
+  let body: unknown
+  try {
+    body = JSON.parse(text)
+  } catch {
+    throw badRequest('Request body must be valid JSON')
+  }
+  return schema.parse(body)
+}
+
 export function parseQuery<S extends z.ZodTypeAny>(req: Request, schema: S): z.infer<S> {
   const params = Object.fromEntries(new URL(req.url).searchParams)
   return schema.parse(params)
