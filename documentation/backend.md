@@ -1,175 +1,151 @@
-# Gaming-Centre • Backend Specification (v0.1)
+# Backend
 
-_Stack_: **Python 3.11**, **FastAPI**, **Supabase Postgres**, **asyncpg**, **supabase_py**, **JWT** (supabase-issued), **Fly.io** deploy.
+The backend is a set of **Next.js Route Handlers** inside the website app (`frontend/app/api/...`), backed by
+**Supabase Postgres** and **Supabase Auth**. There is no separate server: one Vercel deploy serves the pages and the API.
+It replaced an earlier Python/FastAPI service; every URL and response shape was kept, so the website code only needed
+to switch to a shared client (`frontend/lib/api.ts`).
 
-> This doc is the contract for implementing the backend.  Front-end and QA teams should treat all shapes/paths as canonical until version bump.
+## Layout
 
----
-
-## 1  Domain Overview
-| Entity      | Description                                          |
-|-------------|------------------------------------------------------|
-| **User**    | Registered customer (supabase auth user).            |
-| **Staff**   | Elevated user; can view all bookings, edit stations. |
-| **Admin**   | Full privileges; manage staff/users/stats.          |
-| **Station** | A physical PS5 or PC rig that can be booked.         |
-| **Booking** | Reservation block (`start_at`, `end_at`, status).    |
-| **Stats**   | Materialised views for charts (bookings / revenue).  |
-
-_Role hierarchy_: `admin ⊃ staff ⊃ user`.
-
----
-
-## 2  Supabase Schema (Postgres)
-```sql
--- Users handled by Supabase Auth (id UUID primary key)
-
-create table stations (
-    id          uuid primary key default gen_random_uuid(),
-    name        text not null,
-    type        text check (type in ('PS5','PC')),
-    hourly_rate numeric(8,2) not null,
-    active      boolean default true,
-    created_at  timestamptz default now()
-);
-
-create table bookings (
-    id           uuid primary key default gen_random_uuid(),
-    user_id      uuid references auth.users not null,
-    station_id   uuid references stations on delete cascade,
-    start_at     timestamptz not null,
-    end_at       timestamptz not null,
-    paid         boolean default false,
-    status       text default 'CONFIRMED' check (status in ('CONFIRMED','CANCELLED','EXPIRED')),
-    created_at   timestamptz default now(),
-    constraint no_overlap_excl EXCLUDE USING gist (
-        station_id WITH =,
-        tstzrange(start_at, end_at) WITH &&
-    )
-);
-
--- Roles & Policies
-alter table stations enable row level security;
-alter table bookings  enable row level security;
-
--- Users can manipulate their own bookings
-create policy "User can manage own bookings" on bookings
-  for all using ( auth.uid() = user_id );
-
--- Staff/Admin roles (set via Postgres roles assigned by Supabase)
-create policy "Staff & Admin view all" on bookings
-  for select using ( auth.role() in ('staff','admin') );
-
--- Materialised view for stats (example)
-create materialized view mv_booking_stats_daily as
-select date_trunc('day', start_at AT TIME ZONE 'Asia/Kolkata') as day,
-       count(*)                             as total,
-       sum(paid::int)                       as paid_count,
-       sum(extract(epoch from end_at - start_at)/3600 * s.hourly_rate) as revenue
-from bookings b
-join stations s on s.id = b.station_id
-where status = 'CONFIRMED'
-group by 1
-order by 1 desc;
+```
+frontend/
+├── app/api/v1/...        one folder per endpoint, each a thin route.ts
+├── app/api/cron/         scheduled job (reminders + booking status refresh)
+└── server/               server-only code
+    ├── auth.ts           verify the user's token, look up the role (cached 60 s)
+    ├── http.ts           route() wrapper, { detail } errors, zod parsing
+    ├── pricing.ts        prices, discounts, refunds, prepaid billing (integer paise)
+    ├── time.ts           IST helpers
+    ├── status.ts         live booking status from the clock
+    ├── receipt.ts        PDF receipt (pdf-lib + bundled DejaVu font so the rupee sign renders)
+    ├── mailer.ts         SMTP email (never throws; reports whether it sent)
+    ├── rateLimit.ts      best-effort per-instance limiter for signup / lookups
+    └── services/         business logic; services/admin/ for staff features
 ```
 
----
+## Security model
 
-## 3  Authentication & Authorization
-1. **Registration / Login handled by Supabase Auth** (email + password hashed server-side by Supabase).  FastAPI trusts incoming `Authorization: Bearer <jwt>` tokens issued by Supabase.
-2. **Password reset / email confirmation** flows remain in Supabase.
-3. **Admin & Staff assignment** – designated by attaching Postgres roles (`staff`, `admin`) via Supabase dashboard or SQL.
-4. **FastAPI security dependency** (`get_current_user`) will:
-   - Decode JWT via [`python-jose`](https://python-jose.readthedocs.io/).
-   - Verify `iss`, `aud`, expiry.
-   - Expose `UserContext` (`id`, `role`, `email`).
+- **Every request is authenticated by verifying the Supabase JWT** (signature, expiry, audience): public keys from
+  the project's JWKS, or the legacy `SUPABASE_JWT_SECRET` for HS256 projects. Tokens are never trusted unverified.
+- **Roles**: `user` (default), `staff`, `admin`. A row in `user_roles` wins; otherwise an email listed in
+  `admin_settings.admin_emails` is an admin. A failed role lookup returns 503 rather than silently demoting anyone.
+- The server uses the **service-role key**, which bypasses row level security, so authorisation lives in the route
+  handlers (`authenticate` / `requireRole`). RLS (`03_security_storage.sql`) still protects the few tables the
+  browser queries directly (stations, profiles, profile pictures).
+- Database functions the API calls are not executable by `anon` / `authenticated`.
+- No CORS configuration: the API is same-origin.
 
----
+## Conventions
 
-## 4  API Surface (FastAPI)
-> All endpoints prefixed with `/api/v1` and return JSON (RFC 8259).  Dates are ISO-8601 (UTC) unless noted.
+- **Errors** are `{ "detail": "message" }` with a sensible status (400 validation, 401 not signed in, 403 wrong role,
+  404, 429 rate limited, 503 when the database is unreachable). Unexpected errors are logged server-side and returned
+  as a generic 500.
+- **Times** are Indian Standard Time everywhere. Booking `start_at` / `end_at` are text `YYYY-MM-DD HH:MM:SS` (IST wall
+  clock) and `start_time` / `end_time` are `HH:MM` (see `server/time.ts`). The server's own timezone does not matter.
+- **Money** is computed in integer paise and rounded once (`server/pricing.ts`).
+- **Reservations**: the customer site books a whole day with no `start_time`; staff check the booking in at a
+  station and the real start/end are set then. Bookings with a `start_time` are timed slots.
+- **Booking status** (`UPCOMING`, `ONGOING`, `ENDED`, `CANCELLED`, plus `PENDING` for reservations) is derived from the
+  clock on read and persisted by the scheduled job. A checked-in session stays `ONGOING` until staff stop it.
+- **Prepaid cards and advance payments** have no payment gateway: a customer's request is created `PENDING`, staff take the
+  money at the counter and confirm it in the admin panel (Settings -> Pending Neo Card Requests; booking payment screen).
 
-| Method | Path                          | Auth   | Description                                           |
-|--------|-------------------------------|--------|-------------------------------------------------------|
-| POST   | `/auth/register`              | none   | (optional) proxy to Supabase signUp for unified docs  |
-| POST   | `/auth/login`                 | none   | "                                                     |
-| GET    | `/profile`                    | user   | Get current user profile & role                       |
-| PUT    | `/profile`                    | user   | Update display name, phone, avatar                    |
-| GET    | `/stations`                   | public | List active stations                                  |
-| POST   | `/bookings`                   | user   | Create booking (body: `station_id`, `start`, `end`)   |
-| GET    | `/bookings`                   | user   | List own upcoming / past bookings                     |
-| DELETE | `/bookings/{booking_id}`      | user   | Cancel own booking (`status → CANCELLED`)             |
-| ---    | **Staff/Admin scope**         |        |                                                       |
-| GET    | `/admin/bookings`             | staff  | List all bookings (filters, pagination)               |
-| GET    | `/admin/bookings/calendar`    | staff  | Calendar JSON grouped per station/day                 |
-| POST   | `/admin/stations`             | staff  | CRUD stations (create)                                |
-| PUT    | `/admin/stations/{station}`   | staff  | edit                                                  |
-| DELETE | `/admin/stations/{station}`   | staff  | soft-delete                                           |
-| GET    | `/admin/users`                | admin  | List users & roles                                    |
-| PUT    | `/admin/users/{uid}/role`     | admin  | Promote/demote user                                   |
-| GET    | `/admin/stats/summary`        | staff  | KPIs: total bookings, revenue, occupancy              |
-| GET    | `/admin/stats/daily`          | staff  | Chart series from `mv_booking_stats_daily`            |
+## Database
 
-_All staff/admin endpoints share `depends(get_current_user(role_required=['staff','admin']))`._
+Run `sql/setup/01_tables.sql` ... `07_reminders_rpcs.sql` in order (README has the list). Anything that must be atomic is
+a SQL function so two simultaneous requests cannot both succeed: `create_booking` (slot check + coupon + insert),
+`cancel_booking`, `checkin_booking`, `stop_timer`, `extend_booking_hour`, `confirm_prepaid_card`, plus the dashboard
+aggregates and the reminder queries.
 
----
+## Environment variables (server only unless noted)
 
-## 5  Implementation Notes
-- **Concurrency lock**: booking creation uses Postgres advisory lock or transaction isolation _serializable_ to avoid race conditions.
-- **Time zone**: convert incoming IST local times → UTC before insert; convert UTC → IST for outward JSON.
-- **Pagination**: cursor-based via `?after=<booking_id>&limit=20`.
-- **Validation**: Pydantic models with strict types; custom validators for time slots.
-- **Error model**: `{ "detail": "string", "code": "ERR_CODE" }`.
+| Name | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | browser client (public) |
+| `SUPABASE_URL` | optional; defaults to `NEXT_PUBLIC_SUPABASE_URL` |
+| `SUPABASE_SERVICE_ROLE_KEY` | the API's database access (keep secret) |
+| `SUPABASE_JWT_SECRET` | only for legacy HS256 projects |
+| `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | booking and reminder emails (optional) |
+| `CRON_SECRET` | protects `/api/cron/reminders` |
 
----
+## Scheduled job
 
-## 6  Packages & Tooling
-```toml
-# pyproject.toml (excerpt)
-[tool.poetry.dependencies]
-fastapi = "^0.111"
-uvicorn = { extras=["standard"], version="^0.29" }
-supabase-py = "^2.3"
-python-jose = { extras=["cryptography"], version="^3.3" }
-asyncpg = "^0.29"
-pydantic = "^2.7"
-python-dateutil = "^2.9"
-zonedata = "^0.1"  # thin wrapper for zoneinfo if needed
+`/api/cron/reminders` must be called every 5 minutes; see [`reminders-cron.md`](reminders-cron.md).
 
-[tool.poetry.dev-dependencies]
-pytest = "^8.0"
-pytest-asyncio = "^0.23"
-ruff = "*"
+## Endpoints
+
+Generated from the route files. "staff / admin" means either role; "signed-in user" means any valid token.
+
+| Method | Path | Who |
+|---|---|---|
+| GET | `/api/cron/reminders` | cron secret |
+| POST | `/api/cron/reminders` | cron secret |
+| GET | `/api/v1/admin/admin/emails` | admin |
+| PUT | `/api/v1/admin/admin/emails` | admin |
+| GET | `/api/v1/admin/all-coupons` | admin |
+| GET | `/api/v1/admin/bookings` | staff / admin |
+| GET | `/api/v1/admin/bookings/by-date` | staff / admin |
+| GET | `/api/v1/admin/bookings/calendar` | staff / admin |
+| GET | `/api/v1/admin/bookings/cancelled` | staff / admin |
+| PUT | `/api/v1/admin/bookings/{id}` | staff / admin |
+| POST | `/api/v1/admin/bookings/{id}/checkin` | staff / admin |
+| POST | `/api/v1/admin/bookings/{id}/extend-hour` | staff / admin |
+| PUT | `/api/v1/admin/bookings/{id}/payment` | staff / admin |
+| GET | `/api/v1/admin/bookings/{id}/receipt` | staff / admin |
+| POST | `/api/v1/admin/bookings/{id}/start-grace` | staff / admin |
+| POST | `/api/v1/admin/bookings/{id}/timer/start` | staff / admin |
+| POST | `/api/v1/admin/bookings/{id}/timer/stop` | staff / admin |
+| POST | `/api/v1/admin/create-coupon` | admin |
+| GET | `/api/v1/admin/food-items` | staff / admin |
+| PUT | `/api/v1/admin/food-items` | admin |
+| GET | `/api/v1/admin/points/transactions` | admin |
+| GET | `/api/v1/admin/prepaid/cards` | staff / admin |
+| POST | `/api/v1/admin/prepaid/cards/{id}/confirm` | staff / admin |
+| GET | `/api/v1/admin/prepaid/plans` | staff / admin |
+| POST | `/api/v1/admin/prepaid/plans` | staff / admin |
+| DELETE | `/api/v1/admin/prepaid/plans/{id}` | staff / admin |
+| GET | `/api/v1/admin/stations/reservations` | staff / admin |
+| GET | `/api/v1/admin/stats/payments` | staff / admin |
+| GET | `/api/v1/admin/stats/summary` | staff / admin |
+| GET | `/api/v1/admin/tournaments` | admin |
+| POST | `/api/v1/admin/tournaments` | admin |
+| GET | `/api/v1/admin/tournaments/{id}/registrations` | admin |
+| PUT | `/api/v1/admin/tournaments/{id}/status` | admin |
+| POST | `/api/v1/admin/user-profiles` | staff / admin |
+| GET | `/api/v1/admin/users` | admin |
+| POST | `/api/v1/auth/check-username` | public |
+| POST | `/api/v1/auth/login-with-username` | public |
+| GET | `/api/v1/auth/profile` | signed-in user |
+| PUT | `/api/v1/auth/profile` | signed-in user |
+| POST | `/api/v1/auth/signup` | public |
+| GET | `/api/v1/bookings` | signed-in user |
+| POST | `/api/v1/bookings` | signed-in user |
+| DELETE | `/api/v1/bookings/{id}` | signed-in user |
+| POST | `/api/v1/create-first-booking-coupon` | signed-in user |
+| GET | `/api/v1/my-coupons` | signed-in user |
+| POST | `/api/v1/points/redeem/{rewardId}` | signed-in user |
+| GET | `/api/v1/points/rewards` | public |
+| GET | `/api/v1/prepaid/balance` | signed-in user |
+| GET | `/api/v1/prepaid/my-cards` | signed-in user |
+| GET | `/api/v1/prepaid/plans` | public |
+| POST | `/api/v1/prepaid/purchase` | signed-in user |
+| GET | `/api/v1/stations` | public |
+| GET | `/api/v1/stations/availability-by-type` | public |
+| GET | `/api/v1/tournaments` | public |
+| POST | `/api/v1/tournaments/{id}/register` | signed-in user |
+| POST | `/api/v1/use-referral` | signed-in user |
+| GET | `/api/v1/user/points` | signed-in user |
+| GET | `/api/v1/user/points/history` | signed-in user |
+| POST | `/api/v1/validate-coupon` | signed-in user |
+
+## Testing
+
+```bash
+cd frontend
+npm test          # unit tests (pricing, time, auth, every service, receipt PDF, cron job)
+npx tsc --noEmit  # types
+npm run build     # production build
 ```
 
----
-
-## 7  Deployment
-1. **Dockerfile** (python 3.11-slim) with health check at `/healthz`.
-2. Fly.io `fly.toml` sets `PRIMARY_REGION = "sin"`, mounts no volumes (stateless).
-3. Env vars injected: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET`.
-
----
-
-## 8  Testing Matrix
-| Layer        | Tool          | Coverage                                      |
-|--------------|--------------|-----------------------------------------------|
-| Unit         | Pytest       | Validators, utils, guarding dependencies       |
-| Integration  | Pytest + SC  | Against local Supabase CLI; booking overlap    |
-| E2E (API)    | Dredd / pr.  | Contract tests vs OpenAPI spec                 |
-
----
-
-## 9  OpenAPI & Docs
-FastAPI auto-generates `/docs` & `/redoc` in dev; commit the json to `/openapi.json` for client code-gen.
-
----
-
-## 10  Future-Phase Placeholders
-- Stripe web-hooks (`/webhooks/stripe`) to set `paid=true`.
-- Supabase Realtime broadcasting on new bookings to Next.js via socket.
-- Admin analytics: additional MV for hourly occupancy.
-
----
-
-**Author**: Design Team · _last updated_ {{DATE}} 
+The SQL functions were exercised on a local Postgres (including a concurrent double-booking attempt). Run the files
+twice on a fresh database to confirm they are safe to re-run.

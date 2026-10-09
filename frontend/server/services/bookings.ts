@@ -12,7 +12,7 @@ const istDateTime = z.string().regex(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'expected HH:MM')
 
 export const createBookingSchema = z.object({
-  station_id: z.string().uuid().nullish(),
+  station_id: z.guid().nullish(),
   station_type: z.enum(['PC', 'PS5']).nullish(),
   start_at: istDateTime.nullish(),
   end_at: istDateTime.nullish(),
@@ -149,4 +149,4 @@ export async function cancelBooking(bookingId: string, userId: string, db: Supab
   return { message: 'Booking cancelled successfully', refund_amount: r.refund_amount, cancellation_fee: r.cancellation_fee }
 }
 
-export const uuidParam = z.string().uuid('Invalid id')
+export const uuidParam = z.guid('Invalid id')

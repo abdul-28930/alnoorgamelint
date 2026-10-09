@@ -6,7 +6,7 @@ import { getSupabase } from '../../supabase'
 import { toIstString } from '../../time'
 import { mapRpcError } from '../bookings'
 
-export const checkinQuery = z.object({ station_id: z.string().uuid('Invalid station id') })
+export const checkinQuery = z.object({ station_id: z.guid('Invalid station id') })
 
 /** Assigns the station and starts the session; all rules live in one atomic database function. */
 export async function checkin(bookingId: string, stationId: string, db: SupabaseClient = getSupabase(), now = new Date()) {

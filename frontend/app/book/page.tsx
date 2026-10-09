@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { NavBar } from '@/components/ui/navbar'
 import { Footer } from '@/components/ui/footer'
 import { bookings, auth, stations } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
 
 function BookPageContent() {
@@ -36,7 +37,7 @@ function BookPageContent() {
     try {
       const { data: { session } } = await auth.getSession()
       const token = session?.access_token
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/validate-coupon?coupon_code=${code}`, {
+      const response = await apiFetch(`/api/v1/validate-coupon?coupon_code=${code}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })

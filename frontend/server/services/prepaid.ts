@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { ApiError, notFound } from '../http'
 import { getSupabase } from '../supabase'
 
-export const purchaseQuery = z.object({ plan_id: z.string().uuid('Invalid plan id') })
+export const purchaseQuery = z.object({ plan_id: z.guid('Invalid plan id') })
 
 /** Only staff-confirmed (ACTIVE) cards count towards the usable balance. */
 export async function getBalance(userId: string, db: SupabaseClient = getSupabase()) {

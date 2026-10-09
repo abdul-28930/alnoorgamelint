@@ -130,15 +130,23 @@ export default function BookingsPage() {
         <div>
           <span className="text-gray-400 text-sm">Payment:</span>
           <p className="font-semibold text-cp-yellow">₹{booking.total_amount || 0}</p>
-          {booking.advance_paid && (
+          {booking.advance_paid ? (
             <p className="text-xs text-cp-cyan">Advance paid: ₹{booking.advance_amount}</p>
-          )}
+          ) : Number(booking.advance_amount) > 0 && booking.status !== 'CANCELLED' ? (
+            <p className="text-xs text-cp-cyan">Advance due at the counter: ₹{booking.advance_amount}</p>
+          ) : null}
         </div>
         <div>
           <span className="text-gray-400 text-sm">Payment Status:</span>
-          <span className={`px-2 py-1 rounded text-xs ${booking.payment_status === 'ADVANCE_PAID' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-            {booking.payment_status === 'ADVANCE_PAID' ? 'Advance Paid' : 'Pending'}
-          </span>
+          {(() => {
+            const label =
+              booking.payment_status === 'PAID' || booking.payment_status === 'PREPAID' ? 'Paid'
+              : booking.payment_status === 'PARTIAL' ? 'Partially Paid'
+              : booking.payment_status === 'ADVANCE_PAID' || booking.advance_paid ? 'Advance Paid'
+              : 'Pending'
+            const tone = label === 'Paid' ? 'bg-green-500/20 text-green-400' : label === 'Pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'
+            return <span className={`px-2 py-1 rounded text-xs ${tone}`}>{label}</span>
+          })()}
         </div>
       </div>
     </div>

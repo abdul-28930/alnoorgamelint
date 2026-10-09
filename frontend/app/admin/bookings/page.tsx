@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { bookings, admin } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 // Booking Edit Modal Component
 const BookingModal = ({ booking, onSave, onClose }: any) => {
@@ -449,9 +449,8 @@ export default function AdminBookings() {
             const remainingMs = calculateRemainingTime(booking)
             if (remainingMs <= 0) {
               // Start grace time
-              fetch(`${API_BASE_URL}/api/v1/admin/bookings/${booking.id}/start-grace`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+              apiFetch(`/api/v1/admin/bookings/${booking.id}/start-grace`, {
+                method: 'POST'
               })
               .then(() => loadStationsWithReservations())
               .catch(console.error)
@@ -462,9 +461,8 @@ export default function AdminBookings() {
           if (booking.grace_time_started_at) {
             const graceElapsed = Date.now() - new Date(booking.grace_time_started_at).getTime()
             if (graceElapsed >= 60000) { // 60 seconds
-              fetch(`${API_BASE_URL}/api/v1/admin/bookings/${booking.id}/extend-hour`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+              apiFetch(`/api/v1/admin/bookings/${booking.id}/extend-hour`, {
+                method: 'POST'
               })
               .then(() => loadStationsWithReservations())
               .catch(console.error)
@@ -566,7 +564,7 @@ export default function AdminBookings() {
 
   const handleUpdatePayment = async (bookingId: string, amount: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/${bookingId}/payment`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/${bookingId}/payment`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount_paid: amount })

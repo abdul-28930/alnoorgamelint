@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
+import { apiFetch } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<any[]>([])
@@ -28,7 +28,7 @@ export default function AdminCouponsPage() {
         return
       }
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/all-coupons`, {
+      const response = await apiFetch(`/api/v1/admin/all-coupons`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -51,7 +51,7 @@ export default function AdminCouponsPage() {
     if (!newCode || !newDiscount) return alert('Fill all fields')
     try {
       const { data: { session } } = await (await import('@/lib/supabase')).auth.getSession()
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/create-coupon?code=${newCode}&discount_percentage=${newDiscount}&coupon_type=${newType}&expires_days=${newExpires}`, {
+      const response = await apiFetch(`/api/v1/admin/create-coupon?code=${newCode}&discount_percentage=${newDiscount}&coupon_type=${newType}&expires_days=${newExpires}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       })

@@ -1,7 +1,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { ApiError, notFound } from '../../http'
+import { ApiError, badRequest, notFound } from '../../http'
 import { computePrice, paymentStatus, remainingAmount } from '../../pricing'
 import { effectiveStatus } from '../../status'
 import { getSupabase } from '../../supabase'
@@ -129,8 +129,8 @@ const istDateTime = z.string().regex(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?
 
 /** Only these fields can be edited (unknown keys are dropped, as before), now with types and ranges. */
 export const updateBookingSchema = z.object({
-  user_id: z.string().uuid(),
-  station_id: z.string().uuid().nullable(),
+  user_id: z.guid(),
+  station_id: z.guid().nullable(),
   start_at: istDateTime,
   end_at: istDateTime,
   paid: z.boolean(),
@@ -146,7 +146,7 @@ export const updateBookingSchema = z.object({
   advance_amount: money,
   advance_paid: z.boolean(),
   advance_payment_method: z.string().max(50).nullable(),
-  payment_status: z.enum(['PENDING', 'PARTIAL', 'PAID', 'ADVANCE_PAID', 'PREPAID']),
+  payment_status: z.string().trim().min(1).max(30), // a label: legacy values must not make a whole save fail
   remaining_amount: z.number().finite(),
   amount_paid: money,
   food_items: z.array(z.unknown()).max(100),
@@ -165,44 +165,106 @@ export const updateBookingSchema = z.object({
 
 export type UpdateBookingInput = z.infer<typeof updateBookingSchema>
 
-const PRICE_KEYS = ['duration_hours', 'discount_type', 'discount_value', 'hourly_rate', 'user_count', 'food_total'] as const
+const PRICE_KEYS = ['duration_hours', 'discount_type', 'discount_value', 'hourly_rate', 'user_count', 'food_total', 'coupon_discount'] as const
 
-export async function updateBooking(id: string, input: UpdateBookingInput, db: SupabaseClient = getSupabase()) {
-  const fields: Record<string, unknown> = { ...input }
-  if ('hourly_rate' in fields) {
-    fields.custom_hourly_rate = fields.hourly_rate
-    delete fields.hourly_rate
+// Fields where null / '' is a meaningful value (clear it). For every other field a null means "no value" and is ignored.
+const NULLABLE = new Set(['station_id', 'booking_notes', 'payment_method', 'cancelled_at', 'start_time', 'end_time', 'advance_payment_method', 'custom_hourly_rate', 'coupon_code'])
+const NUMERIC = new Set(['total_amount', 'duration_hours', 'user_count', 'advance_amount', 'remaining_amount', 'amount_paid', 'food_total', 'refund_amount', 'cancellation_fee', 'discount_value', 'original_amount', 'custom_hourly_rate', 'hourly_rate', 'coupon_discount'])
+const IST_TEXT = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+
+/** IST text as stored; legacy values (ISO with 'T', fractions, UTC offsets from the old check-in) are converted to it. */
+function toIstText(v: string): string {
+  const t = v.trim().replace('T', ' ')
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(t)) return `${t}:00`
+  if (IST_TEXT.test(t)) return t
+  const hasOffset = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(t)
+  const d = new Date(hasOffset ? v : `${t.replace(/\.\d+$/, '').replace(' ', 'T')}+05:30`)
+  return Number.isNaN(d.getTime()) ? v : toIstString(d)
+}
+
+/**
+ * The admin "Edit booking" screen sends the whole booking row back: joined objects (stations, user_profiles), ids,
+ * timestamps, nulls for empty columns and '' for empty time inputs. Keep only editable fields and clean their values,
+ * so a normal save is not rejected by validation.
+ */
+export function normalizeBookingPatch(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw badRequest('Body must be a JSON object')
+  const known = updateBookingSchema.shape as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!(key in known) || value === undefined) continue
+    if (value === '' || value === null) {
+      if (NULLABLE.has(key)) out[key] = null
+      continue
+    }
+    if (NUMERIC.has(key) && typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) out[key] = Number(value)
+    else if ((key === 'start_at' || key === 'end_at') && typeof value === 'string') out[key] = toIstText(value)
+    else out[key] = value
   }
-  if (Object.keys(fields).length === 0) throw new ApiError(400, 'No valid fields to update')
+  return out
+}
 
-  if (PRICE_KEYS.some((k) => k in input)) {
-    const { data: b, error } = await db.from('bookings').select('*, stations(hourly_rate)').eq('id', id).maybeSingle()
-    if (error) throw new ApiError(500, 'Failed to update booking')
-    if (!b) throw notFound('Booking not found')
+export const parseBookingPatch = (raw: unknown): UpdateBookingInput => updateBookingSchema.parse(normalizeBookingPatch(raw))
 
-    const rate = Number(input.hourly_rate ?? b.custom_hourly_rate ?? b.stations?.hourly_rate ?? 0)
+const sameTime = (a: unknown, b: unknown) => (a == null || b == null ? a == b : String(a).slice(0, 5) === String(b).slice(0, 5))
+function unchanged(key: string, before: unknown, after: unknown): boolean {
+  if (before == null && after == null) return true // empty stays empty
+  if (key === 'start_time' || key === 'end_time') return sameTime(before, after)
+  if (NUMERIC.has(key)) return before != null && after != null && Number(before) === Number(after)
+  if (typeof after === 'object' && after !== null) return JSON.stringify(before ?? null) === JSON.stringify(after)
+  return before === after
+}
+
+/**
+ * Applies only the fields that actually changed (a stale full-row save no longer overwrites unrelated columns, and an
+ * untouched hourly rate is no longer pinned as a custom rate). Re-prices when a price input changed.
+ */
+export async function updateBooking(id: string, input: UpdateBookingInput, db: SupabaseClient = getSupabase()) {
+  const { data: b, error } = await db.from('bookings').select('*, stations(hourly_rate)').eq('id', id).maybeSingle()
+  if (error) throw new ApiError(500, 'Failed to update booking')
+  if (!b) throw notFound('Booking not found')
+
+  const effectiveRate = Number(b.custom_hourly_rate ?? b.stations?.hourly_rate ?? 0)
+  const changed: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (key === 'hourly_rate') {
+      if (Number(value) !== effectiveRate) changed.custom_hourly_rate = value
+    } else if (!unchanged(key, b[key], value)) {
+      changed[key] = value
+    }
+  }
+  if (Object.keys(input).length === 0) throw badRequest('No valid fields to update')
+  if (Object.keys(changed).length === 0) {
+    const { stations: _stations, ...row } = b
+    return row
+  }
+
+  const priceChanged = PRICE_KEYS.some((k) => (k === 'hourly_rate' ? 'custom_hourly_rate' : k) in changed)
+  if (priceChanged) {
+    const merged = { ...b, ...changed }
     const price = computePrice({
-      hourlyRate: rate,
-      durationHours: input.duration_hours ?? b.duration_hours ?? 1,
-      userCount: input.user_count ?? b.user_count ?? 1,
-      foodTotal: Number(input.food_total ?? b.food_total ?? 0),
-      discountType: input.discount_type ?? b.discount_type ?? 'NONE',
-      discountValue: Number(input.discount_value ?? b.discount_value ?? 0),
-      couponDiscount: Number(input.coupon_discount ?? b.coupon_discount ?? 0),
+      hourlyRate: Number(merged.custom_hourly_rate ?? b.stations?.hourly_rate ?? 0),
+      durationHours: merged.duration_hours ?? 1,
+      userCount: merged.user_count ?? 1,
+      foodTotal: Number(merged.food_total ?? 0),
+      discountType: merged.discount_type ?? 'NONE',
+      discountValue: Number(merged.discount_value ?? 0),
+      couponDiscount: Number(merged.coupon_discount ?? 0),
     })
-    const paid = Number(input.amount_paid ?? b.amount_paid ?? 0)
-    fields.original_amount = price.originalAmount
-    fields.total_amount = price.totalAmount
-    fields.remaining_amount = remainingAmount(price.totalAmount, paid)
+    const paid = Number(merged.amount_paid ?? 0)
+    changed.original_amount = price.originalAmount
+    changed.total_amount = price.totalAmount
+    changed.remaining_amount = remainingAmount(price.totalAmount, paid)
     // A bigger bill must not stay "PAID" (and a smaller one must not stay "PARTIAL"); prepaid/advance states are left alone.
-    if (!('payment_status' in input) && ['PAID', 'PARTIAL', 'PENDING'].includes(b.payment_status)) {
-      fields.payment_status = paymentStatus(price.totalAmount, paid)
-      fields.paid = fields.payment_status === 'PAID'
+    if (!('payment_status' in changed) && ['PAID', 'PARTIAL', 'PENDING'].includes(b.payment_status)) {
+      const status = paymentStatus(price.totalAmount, paid)
+      if (status !== b.payment_status) changed.payment_status = status
+      changed.paid = status === 'PAID'
     }
   }
 
-  const { data, error } = await db.from('bookings').update(fields).eq('id', id).select().maybeSingle()
-  if (error) throw new ApiError(500, 'Failed to update booking')
+  const { data, error: updateError } = await db.from('bookings').update(changed).eq('id', id).select().maybeSingle()
+  if (updateError) throw new ApiError(500, 'Failed to update booking')
   if (!data) throw notFound('Booking not found')
   return data
 }

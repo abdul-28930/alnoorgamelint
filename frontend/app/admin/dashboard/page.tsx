@@ -6,8 +6,8 @@ import { AdminGuard } from '@/components/ui/admin-guard'
 import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { InfoCard } from '@/components/ui/info-card'
 import { bookings, auth, stations } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -25,7 +25,7 @@ export default function AdminDashboard() {
 
   const loadStats = async () => {
     try {
-      let url = `${API_BASE_URL}/api/v1/admin/stats/summary`
+      let url = `/api/v1/admin/stats/summary`
       
       // Add date range parameters if provided
       const params = new URLSearchParams()
@@ -42,7 +42,7 @@ export default function AdminDashboard() {
       const data = await response.json()
       
       // Get active stations count
-      const stationsResponse = await fetch(`${API_BASE_URL}/api/v1/stations`, {
+      const stationsResponse = await apiFetch(`/api/v1/stations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const stationsData = await stationsResponse.json()
