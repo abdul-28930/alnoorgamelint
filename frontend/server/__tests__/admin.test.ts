@@ -5,7 +5,7 @@ import { fakeDb, rpcArgs } from './fakeDb'
 import { buildReceiptPdf, formatIst, receiptLines } from '../receipt'
 import { computePrice } from '../pricing'
 import {
-  bookingsByDate, calendar, listBookings, pageQuery, recordPayment, stationsWithReservations, updateBooking, updateBookingSchema,
+  bookingsByDate, calendar, listBookings, normalizeBookingPatch, pageQuery, parseBookingPatch, recordPayment, stationsWithReservations, updateBooking,
 } from '../services/admin/bookings'
 import { checkin, extendHour, startGrace, startTimer, stopTimer } from '../services/admin/operations'
 import {
@@ -94,31 +94,60 @@ describe('admin bookings', () => {
 })
 
 describe('updateBooking', () => {
-  const existing = { custom_hourly_rate: null, stations: { hourly_rate: 100 }, duration_hours: 1, user_count: 1, food_total: 0, discount_type: 'NONE', discount_value: 0, coupon_discount: 20, amount_paid: 80, payment_status: 'PAID' }
-  const run = async (input: object) => {
-    const { db, log } = fakeDb({ tables: { bookings: (calls) => ({ data: calls.some((c) => c.method === 'update') ? { id: 'b1' } : existing }) } })
-    await updateBooking('b1', updateBookingSchema.parse(input), db)
-    return log.flatMap((e) => e.calls).find((c) => c.method === 'update')!.args[0] as Record<string, unknown>
+  // A booking as the database returns it (what the edit screen holds and sends back)
+  const row = {
+    id: 'b1', user_id: '11111111-1111-1111-1111-111111111111', station_id: '22222222-2222-2222-2222-222222222222',
+    start_at: '2030-01-01 10:00:00', end_at: '2030-01-01 11:00:00', start_time: '10:00:00', end_time: '11:00:00',
+    status: 'UPCOMING', paid: null, checked_in: null, advance_paid: null, cancelled_at: null, booking_notes: null,
+    payment_method: null, advance_payment_method: null, coupon_code: 'C1', refund_amount: null, cancellation_fee: null,
+    custom_hourly_rate: null, duration_hours: 1, user_count: 1, food_total: 0, food_items: [], discount_type: 'NONE',
+    discount_value: 0, coupon_discount: 20, amount_paid: 80, total_amount: 80, original_amount: 100, remaining_amount: 0,
+    payment_status: 'PAID', created_at: '2030-01-01T00:00:00Z', updated_at: '2030-01-01T00:00:00Z',
+    stations: { hourly_rate: 100 }, user_profiles: { username: 'ann' },
   }
-  it('recalculates total keeping the coupon, and flips PAID to PARTIAL when the bill grows', async () => {
-    const u = await run({ duration_hours: 2, food_total: 30 })
-    expect(u).toMatchObject({ original_amount: 230, total_amount: 210, remaining_amount: 130, payment_status: 'PARTIAL', paid: false })
+  const run = async (input: unknown, existing: object = row) => {
+    const { db, log } = fakeDb({ tables: { bookings: (calls) => ({ data: calls.some((c) => c.method === 'update') ? { id: 'b1' } : existing }) } })
+    const out = await updateBooking('b1', parseBookingPatch(input), db)
+    const update = log.flatMap((e) => e.calls).find((c) => c.method === 'update')
+    return { update: update?.args[0] as Record<string, unknown> | undefined, out }
+  }
+
+  it('accepts the full row the edit screen sends back (joins, nulls, empty times, ids) without a 400', async () => {
+    const { update } = await run({ ...row, start_time: '', end_time: '', duration_hours: 2, hourly_rate: 100, discount_type: 'NONE', discount_value: 0 })
+    expect(update).toMatchObject({ start_time: null, end_time: null, duration_hours: 2, total_amount: 180, original_amount: 200, remaining_amount: 100, payment_status: 'PARTIAL', paid: false })
+    // joined objects, ids and timestamps never reach the update; untouched columns are not rewritten
+    for (const k of ['stations', 'user_profiles', 'id', 'created_at', 'user_id', 'status', 'booking_notes', 'custom_hourly_rate']) expect(update).not.toHaveProperty(k)
   })
-  it('maps hourly_rate to custom_hourly_rate and re-prices', async () => {
-    const u = await run({ hourly_rate: 50 })
-    expect(u).toMatchObject({ custom_hourly_rate: 50, total_amount: 30 })
-    expect(u).not.toHaveProperty('hourly_rate')
+  it('writes nothing when nothing changed', async () => {
+    const { update, out } = await run({ ...row, start_time: '10:00', hourly_rate: 100 })
+    expect(update).toBeUndefined()
+    expect(out).toMatchObject({ id: 'b1' })
+    expect(out).not.toHaveProperty('stations')
   })
-  it('does not recalc for unrelated edits, and drops unknown / invalid fields', async () => {
-    const u = await run({ booking_notes: 'hi', bogus: 1 })
-    expect(u).toEqual({ booking_notes: 'hi' })
-    expect(() => updateBookingSchema.parse({ total_amount: -5 })).toThrow()
-    expect(() => updateBookingSchema.parse({ status: 'WHATEVER' })).toThrow()
+  it('keeps the coupon discount and flips PAID to PARTIAL when the bill grows', async () => {
+    const { update } = await run({ duration_hours: 2, food_total: 30 })
+    expect(update).toMatchObject({ original_amount: 230, total_amount: 210, remaining_amount: 130, payment_status: 'PARTIAL', paid: false })
   })
-  it('404s for missing bookings and rejects empty updates', async () => {
-    const db = fakeDb({ tables: { bookings: { data: null } } }).db
-    await expect(updateBooking('b1', { duration_hours: 2 }, db)).rejects.toMatchObject({ status: 404 })
-    await expect(updateBooking('b1', {}, db)).rejects.toMatchObject({ status: 400 })
+  it('a changed hourly rate becomes the custom rate; an unchanged one is not pinned', async () => {
+    expect((await run({ hourly_rate: 50 })).update).toMatchObject({ custom_hourly_rate: 50, total_amount: 30 })
+    expect((await run({ hourly_rate: 100, booking_notes: 'hi' })).update).toEqual({ booking_notes: 'hi' })
+  })
+  it('honours a manually typed total when no price input changed', async () => {
+    expect((await run({ total_amount: 55 })).update).toEqual({ total_amount: 55 })
+  })
+  it('converts legacy UTC/ISO timestamps to IST text and coerces numeric strings', async () => {
+    const { update } = await run({ start_at: '2030-01-01T05:30:00.123+00:00', end_at: '2030-01-01 16:30', amount_paid: '90' })
+    expect(update).toMatchObject({ start_at: '2030-01-01 11:00:00', end_at: '2030-01-01 16:30:00', amount_paid: 90 })
+  })
+  it('rejects genuinely invalid values, drops unknown keys, and 404s / 400s on the edges', async () => {
+    expect(() => parseBookingPatch({ total_amount: -5 })).toThrow()
+    expect(() => parseBookingPatch({ status: 'WHATEVER' })).toThrow()
+    expect(() => parseBookingPatch({ start_at: 'not a date' })).toThrow()
+    expect(() => parseBookingPatch([1])).toThrow()
+    expect(normalizeBookingPatch({ bogus: 1, stations: {}, notes: 'x' })).toEqual({})
+    expect(parseBookingPatch({ payment_status: 'REFUNDED' })).toEqual({ payment_status: 'REFUNDED' })
+    await expect(updateBooking('b1', {}, fakeDb({ tables: { bookings: { data: row } } }).db)).rejects.toMatchObject({ status: 400 })
+    await expect(updateBooking('b1', { duration_hours: 2 }, fakeDb({ tables: { bookings: { data: null } } }).db)).rejects.toMatchObject({ status: 404 })
   })
 })
 

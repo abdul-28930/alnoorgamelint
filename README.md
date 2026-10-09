@@ -16,10 +16,10 @@ Noor Gaming Lab is a full-stack gaming center management system that allows cust
 - **State Management**: React Hooks
 
 ### Backend
-- **Framework**: FastAPI (Python)
-- **Database**: PostgreSQL with Supabase
-- **Authentication**: JWT tokens with role-based access
-- **Deployment**: Fly.io
+- **Framework**: Next.js Route Handlers (`frontend/app/api/v1/...`), the same app as the website, so there is one deploy
+- **Database**: PostgreSQL with Supabase (business rules that must be atomic live in SQL functions)
+- **Authentication**: Supabase JWTs, verified on every request, with role-based access (user / staff / admin)
+- **Deployment**: Vercel (plus a free scheduler for reminder emails, see `documentation/reminders-cron.md`)
 
 ### Database
 - **Primary**: Supabase (PostgreSQL)
@@ -173,64 +173,58 @@ app/
 components/
 └── ui/              # Reusable UI components
 
-lib/
+├── api.ts           # apiFetch: calls our API with the signed-in user's token
 └── supabase.ts      # Database and auth helpers
+
+app/api/v1/          # The backend: one folder per endpoint (route.ts)
+app/api/cron/        # Scheduled job (reminders + booking status refresh)
+
+server/              # Backend code (server-only)
+├── auth.ts          # JWT verification and roles
+├── http.ts          # Error handling and validation helpers
+├── pricing.ts       # Prices, discounts, refunds, prepaid billing
+├── time.ts          # IST time helpers
+├── receipt.ts       # PDF receipts
+├── mailer.ts        # Email
+└── services/        # Business logic used by the routes
 ```
 
-### Backend (`/backend`)
+### Database (`/sql/setup`)
+Run these in the Supabase SQL editor, in order, each in its own new query tab:
 ```
-app/
-├── routes/          # API endpoints
-├── models.py        # Data models
-├── auth.py          # Authentication logic
-├── database.py      # Database connections
-└── main.py          # Application entry point
+├── 01_tables.sql            # Tables, keys, indexes
+├── 02_functions.sql         # Functions and triggers
+├── 03_security_storage.sql  # Row level security and the profile-picture bucket
+├── 04_seed.sql              # Admin email, stations, rewards (run once)
+├── 05_backend_rpcs.sql      # Atomic booking / cancel / check-in / timer functions
+├── 06_admin_rpcs.sql        # Extend booking, confirm prepaid card
+└── 07_reminders_rpcs.sql    # Reminder and status refresh functions
 ```
-
-### Database (`/sql`)
-```
-├── supabase_schema.sql      # Core database schema
-├── user_profiles.sql        # User profile system
-├── booking_status_system.sql # Booking management
-├── points_system_phase1.sql  # Points and rewards
-├── coupons_auto_create.sql   # Coupon system
-└── tournaments_basic.sql     # Tournament features
-```
+(`sql/00_full_setup.sql` is the older single-file version of `01`-`04`.)
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 18+ and npm
-- Python 3.9+
-- Supabase account
-- PostgreSQL database
+- A Supabase project
 
-### Frontend Setup
+### Database Setup
+1. Create a new Supabase project
+2. Run `sql/setup/01_tables.sql` to `07_reminders_rpcs.sql` in order (see above)
+3. Put your admin email in `04_seed.sql` before running it (or later: `UPDATE admin_settings SET admin_emails='["you@example.com"]' WHERE id=1;`)
+
+### App Setup (website and API together)
 ```bash
 cd frontend
 npm install
 cp env.example .env.local
-# Configure environment variables
-npm run dev
+# Fill in the Supabase keys (see env.example)
+npm run dev        # http://localhost:3000, API at /api/v1
+npm test           # unit tests
 ```
 
-### Backend Setup
-```bash
-cd backend
-pip install -r requirements.txt
-cp env.example .env
-# Configure environment variables
-python run.py
-```
-
-### Database Setup
-1. Create a new Supabase project
-2. Run the SQL files in order:
-   - `supabase_schema.sql`
-   - `user_profiles.sql`
-   - `booking_status_system.sql`
-   - `points_system_phase1.sql`
-   - `coupons_auto_create.sql`
+### Reminder emails
+A scheduler must call `/api/cron/reminders` every 5 minutes. Setup steps: `documentation/reminders-cron.md`.
 
 ## 🌟 Key Differentiators
 

@@ -16,7 +16,7 @@ function MyCoupons({ userId }: { userId?: string }) {
         const { data: { session } } = await auth.getSession()
         const token = session?.access_token
         
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/my-coupons`, {
+        const response = await apiFetch(`/api/v1/my-coupons`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await response.json()
@@ -62,6 +62,7 @@ import { NavBar } from '@/components/ui/navbar'
 import { Footer } from '@/components/ui/footer'
 import { ProfilePictureUpload } from '@/components/ui/profile-picture-upload'
 import { auth, profiles, storage, points } from '@/lib/supabase'
+import { apiError, apiFetch } from '@/lib/api'
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
@@ -156,11 +157,10 @@ export default function ProfilePage() {
         const { data: { session } } = await auth.getSession()
         const token = session?.access_token
         if (!token) return
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
         const [balanceRes, plansRes, cardsRes] = await Promise.all([
-          fetch(`${backendUrl}/api/v1/prepaid/balance`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${backendUrl}/api/v1/prepaid/plans`),
-          fetch(`${backendUrl}/api/v1/prepaid/my-cards`, { headers: { Authorization: `Bearer ${token}` } })
+          apiFetch('/api/v1/prepaid/balance'),
+          apiFetch('/api/v1/prepaid/plans'),
+          apiFetch('/api/v1/prepaid/my-cards')
         ])
         const balanceJson = await balanceRes.json()
         setPrepaidBalance(balanceJson.remaining_minutes || 0)
@@ -463,14 +463,13 @@ export default function ProfilePage() {
                     <button
                       className="bg-cp-cyan text-cp-black px-3 py-1 rounded text-xs hover:bg-cp-yellow"
                       onClick={async () => {
-                        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
-                        await fetch(`${backendUrl}/api/v1/prepaid/purchase?plan_id=${plan.id}`, {
-                          method: 'POST',
-                          credentials: 'include',
-                        })
-                        const res = await fetch(`${backendUrl}/api/v1/prepaid/balance`, {
-                          credentials: 'include',
-                        })
+                        const buy = await apiFetch(`/api/v1/prepaid/purchase?plan_id=${plan.id}`, { method: 'POST' })
+                        if (!buy.ok) {
+                          alert(await apiError(buy, 'Failed to request Neo Card'))
+                          return
+                        }
+                        alert('Neo Card requested! Pay at the counter and our staff will activate it for you.')
+                        const res = await apiFetch('/api/v1/prepaid/balance')
                         const json = await res.json()
                         setPrepaidBalance(json.remaining_minutes || 0)
                       }}

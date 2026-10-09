@@ -13,7 +13,7 @@ const fail = (msg: string, error: unknown) => {
 
 // ---- prepaid plans -----------------------------------------------------------------------------
 export const planSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   name: z.string().trim().min(1).max(100),
   price: z.number().finite().min(0),
   minutes: z.number().int().min(1).max(100_000),
@@ -80,7 +80,7 @@ export async function listUsers({ page, limit }: z.infer<typeof usersQuery>, db:
   return data ?? []
 }
 
-export const userIdsSchema = z.array(z.string().uuid()).max(500)
+export const userIdsSchema = z.array(z.guid()).max(500)
 
 export async function profilesByIds(ids: string[], db: SupabaseClient = getSupabase()) {
   if (ids.length === 0) return []

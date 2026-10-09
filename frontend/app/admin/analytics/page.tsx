@@ -7,8 +7,8 @@ import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { BookingCalendar } from '@/components/ui/booking-calendar'
 import { DateBookingsModal } from '@/components/ui/date-bookings-modal'
 import { bookings } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState({
@@ -50,11 +50,11 @@ export default function AdminAnalytics() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/admin/stats/summary`)
+        const response = await apiFetch(`/api/v1/admin/stats/summary`)
         const data = await response.json()
         setStats(data)
         
-        const paymentResponse = await fetch(`${API_BASE_URL}/api/v1/admin/stats/payments`)
+        const paymentResponse = await apiFetch(`/api/v1/admin/stats/payments`)
         const paymentData = await paymentResponse.json()
         setPaymentStats(paymentData)
       } catch (error) {
@@ -245,7 +245,7 @@ export default function AdminAnalytics() {
       
       if (!token) return
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/by-date?date=${date}`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/by-date?date=${date}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
