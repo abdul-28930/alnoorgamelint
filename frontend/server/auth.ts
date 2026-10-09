@@ -2,7 +2,7 @@ import 'server-only'
 import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTVerifyGetKey } from 'jose'
 import { getEnv } from './env'
 import { getSupabase } from './supabase'
-import { forbidden, unauthorized } from './http'
+import { ApiError, forbidden, unauthorized } from './http'
 
 export type Role = 'user' | 'staff' | 'admin'
 
@@ -64,6 +64,9 @@ export async function getRole(userId: string, email: string): Promise<Role> {
     db.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
     db.from('admin_settings').select('admin_emails').eq('id', 1).maybeSingle(),
   ])
+
+  // A failed lookup must not be cached (or silently demote an admin for a minute).
+  if (roleRes.error || settingsRes.error) throw new ApiError(503, 'Service temporarily unavailable')
 
   let role: Role = 'user'
   if (roleRes.data?.role) {
