@@ -11,10 +11,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/supabase-js": "^2.38.0",
     "jose": "^6.2.12",
     "lucide-react": "^0.525.0",
     "next": "^14.2.30",
+    "nodemailer": "^10.0.16",
+    "pdf-lib": "^1.17.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "server-only": "^0.0.1",
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.0",
