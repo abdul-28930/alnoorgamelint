@@ -1,48 +1,81 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { NavBar } from '@/components/ui/navbar'
+import { publicApi, type Invitation, type PublicTournament } from '@/lib/tournaments'
+
+const LABEL: Record<string, string> = { open: 'Registration open', paused: 'Paused', active: 'In progress', completed: 'Finished' }
+const COLOR: Record<string, string> = { open: 'text-green-400', paused: 'text-yellow-400', active: 'text-cp-cyan', completed: 'text-gray-400' }
 
 export default function TournamentsPage() {
+  const [rows, setRows] = useState<PublicTournament[] | null>(null)
+  const [invites, setInvites] = useState<Invitation[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setRows(await publicApi.list())
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    publicApi.invitations().then(setInvites).catch(() => setInvites([])) // signed-out visitors just get none
+  }, [])
+
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 10000)
+    return () => clearInterval(t)
+  }, [load])
+
   return (
-    <div className="min-h-screen bg-cp-black">
+    <div className="min-h-screen bg-cp-black text-white">
       <NavBar />
-      
-      <main className="pt-24 pb-12 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="mb-8">
-            <h1 className="text-6xl md:text-8xl font-bold mb-4 text-cp-yellow">
-              TOURNAMENTS
-            </h1>
-            <div className="text-4xl md:text-6xl text-cp-cyan mb-8 font-bold">
-              COMING SOON!
-            </div>
+      <main className="mx-auto max-w-6xl px-6 pb-12 pt-24">
+        <h1 className="mb-8 text-5xl font-bold text-cp-yellow md:text-7xl">TOURNAMENTS</h1>
+
+        {invites.length > 0 && (
+          <div className="mb-8 rounded-lg border border-cp-cyan/40 bg-cp-gray/20 p-4">
+            <h2 className="mb-2 font-semibold text-cp-cyan">Team invitations</h2>
+            {invites.map((i) => (
+              <Link key={i.team_id} href={`/tournaments/${i.tournament_id}`} className="block py-1 hover:text-cp-yellow">
+                {i.captain} invited you to <b>{i.team_name}</b> for {i.tournament_name} →
+              </Link>
+            ))}
           </div>
-          
-          <div className="bg-cp-gray/20 border border-cp-cyan/20 rounded-lg p-8 mb-8">
-            <h2 className="text-2xl font-bold text-cp-yellow mb-4">Epic Gaming Tournaments</h2>
-            <p className="text-gray-300 text-lg mb-6">
-              Get ready for intense competition! Our tournament system is in development and will feature:
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-              <div className="text-gray-300">
-                <div className="text-cp-cyan font-semibold">🎮 PS5 & PC Tournaments</div>
-                <div className="text-cp-cyan font-semibold">🏆 Knockout & League Formats</div>
-                <div className="text-cp-cyan font-semibold">💰 Prize Pools</div>
-              </div>
-              <div className="text-gray-300">
-                <div className="text-cp-cyan font-semibold">📊 Auto Bracket Generation</div>
-                <div className="text-cp-cyan font-semibold">⚡ Live Match Tracking</div>
-                <div className="text-cp-cyan font-semibold">🎯 Player Rankings</div>
-              </div>
-            </div>
+        )}
+
+        {error && <p className="mb-4 text-red-400">{error}</p>}
+        {!rows ? (
+          <p className="text-gray-400">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-gray-300">No tournaments right now. Check back soon!</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {rows.map((t) => (
+              <Link key={t.id} href={`/tournaments/${t.id}`} className="block rounded-lg border border-cp-cyan/20 bg-cp-gray/20 p-5 transition hover:border-cp-cyan">
+                <div className={`mb-1 text-xs font-semibold uppercase ${COLOR[t.status]}`}>{LABEL[t.status] ?? t.status}</div>
+                <h2 className="text-xl font-bold text-cp-yellow">{t.name}</h2>
+                <p className="mb-3 text-sm text-gray-400">
+                  {t.game} · {t.platform} · {t.tournament_type === 'knockout' ? 'Knockout' : 'League'}{t.team_size > 1 ? ` · teams of ${t.team_size}` : ''}
+                </p>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-cp-cyan">{t.registered_count}/{t.max_players}</div>
+                    <div className="text-xs text-gray-400">{t.team_size > 1 ? 'teams' : 'players'} registered</div>
+                  </div>
+                  <div className="text-right text-sm text-gray-300">
+                    {t.prize_pool > 0 && <div>🏆 ₹{t.prize_pool}</div>}
+                    <div>{t.entry_fee > 0 ? `Entry ₹${t.entry_fee}` : 'Free entry'}</div>
+                    <div className="text-xs text-gray-500">👁 {t.view_count}</div>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
-          
-          <p className="text-gray-400 text-lg">
-            Stay tuned for updates. The future of competitive gaming is coming to Neo Gaming Cafe!
-          </p>
-        </div>
+        )}
       </main>
     </div>
   )
-} 
+}

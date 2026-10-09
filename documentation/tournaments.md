@@ -71,9 +71,30 @@ All are executable by the server only. They raise short codes that the API turns
 Screens: `/admin/tournaments` (list, create, live counts) and `/admin/tournaments/{id}` (entrants, seeding, preview,
 bracket or table with Won / Lost / no-show buttons, undo, champion banner). The page refreshes every 8 seconds.
 
+## Public API (`/api/v1/tournaments`)
+
+| Method and path | Auth | Does |
+|---|---|---|
+| `GET /tournaments` | none | Every non-draft tournament with live `registered_count`, `waitlist_count`, `view_count` (cached 5 s) |
+| `GET /tournaments/{id}` | optional | Detail: entrants (names only, no user ids or payments), bracket or table, champion. With a token it adds `me` (your entry, teams, invitations) |
+| `POST /tournaments/{id}/view` | none | `{visitor_id}`: counts one view per visitor per day (IST), returns the total |
+| `POST`, `DELETE /tournaments/{id}/register` | user | Sign up (waitlist when full) or withdraw. Solo tournaments only; withdrawal only before the bracket exists |
+| `POST /tournaments/{id}/teams` | user | `{name, usernames[]}`: the caller becomes captain and the others are invited |
+| `POST /tournaments/{id}/teams/{teamId}/invite` | captain | `{username}` |
+| `POST /tournaments/{id}/teams/{teamId}/accept` | invitee | Joins the team |
+| `DELETE /tournaments/{id}/teams/{teamId}` | member | Decline or leave; the captain leaving disbands the team |
+| `GET /tournaments/invitations` | user | Pending invitations for open tournaments |
+
+A team takes a place (and goes to the waitlist when full) only once all `team_size` players have accepted. A member leaving
+removes the team's place. Registration must be `open`, before `registration_closes_at`, and before the bracket exists.
+Entry fees are shown only; staff mark entrants paid in the admin screen.
+
+Pages: `/tournaments` (list with live counts and your invitations) and `/tournaments/{id}` (sign-up, team management,
+rules and prizes, live bracket or table). Both refresh every 8-10 seconds.
+
 ## Status
 
 1. **Foundation**: database, bracket and standings engine, tests. Done.
-2. **Admin screens and API**: this step. Done.
-3. Public pages and sign-up: tournament list and detail with bracket and standings, register / withdraw, teams and invitations, live registration count, view count.
+2. **Admin screens and API**. Done.
+3. **Public pages and sign-up**: this step. Done.
 4. Extras: notifications, TV mode, station scheduling, group stage + playoffs.

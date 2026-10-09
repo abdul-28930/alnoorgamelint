@@ -11,7 +11,6 @@ import {
 import { createFirstBookingCoupon, listMyCoupons, useReferral, validateCoupon } from '../services/coupons'
 import { getPoints, redeemReward } from '../services/points'
 import { getBalance, purchasePlan } from '../services/prepaid'
-import { registerForTournament } from '../services/tournaments'
 
 const user = { id: 'u1', email: 'u@x.com', role: 'user' as const }
 
@@ -168,7 +167,7 @@ describe('useReferral', () => {
   })
 })
 
-describe('points, prepaid, tournaments', () => {
+describe('points, prepaid', () => {
   it('reads balances', async () => {
     expect(await getPoints('u1', fakeDb({ tables: { user_profiles: { data: { points_balance: 120 } } } }).db)).toEqual({ points_balance: 120 })
     expect(await getPoints('u1', fakeDb({ tables: { user_profiles: { data: null } } }).db)).toEqual({ points_balance: 0 })
@@ -189,15 +188,5 @@ describe('points, prepaid, tournaments', () => {
     const insert = log.find((e) => e.table === 'user_prepaid_cards')!.calls.find((c) => c.method === 'insert')!
     expect(insert.args[0]).toMatchObject({ user_id: 'u1', plan_id: 'p1', total_minutes: 120, remaining_minutes: 120, status: 'PENDING' })
     await expect(purchasePlan('u1', 'p1', fakeDb({ tables: { prepaid_plans: { data: null } } }).db)).rejects.toMatchObject({ status: 404 })
-  })
-  it('tournaments: open only, capacity, duplicates', async () => {
-    const t = (over: Record<string, unknown>) => fakeDb({ tables: {
-      tournaments: { data: 'tournament' in over ? over.tournament : { id: 't1', max_players: 2 } },
-      tournament_registrations: (calls) => calls.some((c) => c.method === 'insert') ? { error: over.insertError ?? null } : { count: (over.count as number | undefined) ?? 0 },
-    } }).db
-    expect(await registerForTournament('u1', 't1', t({}))).toEqual({ message: 'Registered successfully' })
-    await expect(registerForTournament('u1', 't1', t({ tournament: null }))).rejects.toMatchObject({ status: 404 })
-    await expect(registerForTournament('u1', 't1', t({ count: 2 }))).rejects.toMatchObject({ message: 'Tournament is full' })
-    await expect(registerForTournament('u1', 't1', t({ insertError: { code: '23505' } }))).rejects.toMatchObject({ message: 'Already registered' })
   })
 })
