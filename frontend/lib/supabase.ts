@@ -353,7 +353,8 @@ export const admin = {
     if (!settings?.admin_emails) return { data: false, error: { message: 'No admin emails configured' } }
     
     const adminEmails = JSON.parse(settings.admin_emails)
-    return { data: adminEmails.includes(user.email), error: null }
+    const mine = (user.email ?? '').toLowerCase()
+    return { data: Array.isArray(adminEmails) && adminEmails.some((e: unknown) => typeof e === 'string' && e.toLowerCase() === mine), error: null }
   },
 
   // Get all users for admin panel
