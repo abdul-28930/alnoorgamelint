@@ -2,7 +2,7 @@
 
 A neon-cyberpunk web app built with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS** and **shadcn/ui**.
 
-This UI consumes the FastAPI backend and follows the design system defined in [`/ui.md`](../ui.md).
+This UI consumes the API served by the same Next.js app (`app/api/v1`) and follows the design system defined in [`/ui.md`](../ui.md).
 
 ## 🚀 Quick Start
 
@@ -23,7 +23,7 @@ npm run dev  # http://localhost:3000
 ### Required ENV
 | Key                     | Example                                   |
 | ----------------------- | ----------------------------------------- |
-| `NEXT_PUBLIC_API_BASE` | `http://localhost:8000/api/v1`            |
+| `NEXT_PUBLIC_BACKEND_URL` | _(empty: same origin; optional)_       |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://abc.supabase.co`             |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `<anon-key>`                     |
 
@@ -69,7 +69,7 @@ All shared styles are injected via Tailwind plugin utilities & CSS variables to 
 ## 🤝 Integration Notes
 1. **Auth**: Supabase Auth (JWT) → pass token to backend via `fetch` headers.
 2. **Timezone**: Convert UTC → IST client-side using `Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata'})`.
-3. **Env Sync**: Ensure `NEXT_PUBLIC_API_BASE` matches the FastAPI base URL (Fly.io or local).
+3. **Env Sync**: Nothing to sync: the API is served by this app. Call it with `apiFetch` from `lib/api.ts`, which attaches the user's token.
 
 ## 🛠️ Generating shadcn/ui Components
 ```bash

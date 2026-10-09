@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { NavBar } from '@/components/ui/navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { AdminNavBar } from '@/components/ui/admin-navbar'
+import { apiFetch } from '@/lib/api'
 
 export default function AdminPoints() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -16,10 +17,7 @@ export default function AdminPoints() {
   const loadTransactions = async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('accessToken')
-      const response = await fetch('/api/v1/admin/points/transactions', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const response = await apiFetch('/api/v1/admin/points/transactions')
       if (response.ok) {
         const data = await response.json()
         setTransactions(data)

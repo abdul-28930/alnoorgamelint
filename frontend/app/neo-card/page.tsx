@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { NavBar } from '@/components/ui/navbar'
 import { Footer } from '@/components/ui/footer'
 import { auth } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api'
 
 export default function NeoCardPage() {
   const [plans, setPlans] = useState<any[]>([])
@@ -12,7 +13,7 @@ export default function NeoCardPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/prepaid/plans`)
+        const res = await apiFetch(`/api/v1/prepaid/plans`)
         const data = await res.json()
         setPlans(Array.isArray(data) ? data : [])
       } finally {
@@ -30,13 +31,9 @@ export default function NeoCardPage() {
       return
     }
 
-    const backend = process.env.NEXT_PUBLIC_BACKEND_URL
-    const res = await fetch(`${backend}/api/v1/prepaid/purchase?plan_id=${planId}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const res = await apiFetch(`/api/v1/prepaid/purchase?plan_id=${planId}`, { method: 'POST' })
     if (res.ok) {
-      alert('Neo Card purchased successfully!')
+      alert('Neo Card requested! Pay at the counter and our staff will activate it for you.')
     } else {
       const err = await res.json().catch(() => ({}))
       alert(err.detail || 'Failed to purchase Neo Card')

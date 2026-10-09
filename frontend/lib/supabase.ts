@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
+import { apiFetch } from './api'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase environment variables not found. Please check your .env.local file.')
@@ -22,7 +22,7 @@ export const auth = {
     }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/signup`, {
+      const response = await apiFetch(`/api/v1/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -60,7 +60,7 @@ export const auth = {
     
     try {
       // Get email from backend (handles username lookup)
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login-with-username`, {
+      const response = await apiFetch(`/api/v1/auth/login-with-username`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email_or_username: emailOrUsername, password: password })
@@ -97,7 +97,7 @@ export const bookings = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/bookings`, {
+      const response = await apiFetch(`/api/v1/bookings`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export const bookings = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/bookings`, {
+      const response = await apiFetch(`/api/v1/bookings`, {
         method: 'GET',
         headers: { 
           'Content-Type': 'application/json',
@@ -139,7 +139,7 @@ export const bookings = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings?page=${page}&limit=${limit}`, {
+      const response = await apiFetch(`/api/v1/admin/bookings?page=${page}&limit=${limit}`, {
         method: 'GET',
         headers: { 
           'Content-Type': 'application/json',
@@ -158,7 +158,7 @@ export const bookings = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/cancelled?page=${page}&limit=${limit}`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/cancelled?page=${page}&limit=${limit}`, {
         method: 'GET',
         headers: { 
           'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ export const bookings = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/${id}`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +209,7 @@ export const bookings = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/bookings/${id}`, {
+      const response = await apiFetch(`/api/v1/bookings/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -236,9 +236,9 @@ export const bookings = {
   
   getAvailableSlotsByType: async (stationType: 'PC' | 'PS5', date: string) => {
     try {
-      const url = `${API_BASE_URL}/api/v1/stations/availability-by-type?type=${stationType}&date=${date}`
+      const url = `/api/v1/stations/availability-by-type?type=${stationType}&date=${date}`
       console.log('🔍 [DEBUG] Fetching from:', url)
-      const response = await fetch(url)
+      const response = await apiFetch(url)
       console.log('📡 [DEBUG] Response status:', response.status)
       const result = await response.json()
       console.log('📦 [DEBUG] Response data:', result)
@@ -287,13 +287,14 @@ export const profiles = {
   
   checkUsername: async (username: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/check-username?username=${encodeURIComponent(username)}`, {
+      const response = await apiFetch(`/api/v1/auth/check-username?username=${encodeURIComponent(username)}`, {
         method: 'POST'
       })
       const result = await response.json()
-      return { data: result.available, error: null }
+      if (!response.ok) return { data: null, error: { message: result.detail || 'Failed to check username' } }
+      return { data: result.available as boolean, error: null }
     } catch (error) {
-      return { data: false, error: { message: 'Failed to check username' } }
+      return { data: null, error: { message: 'Failed to check username' } }
     }
   },
   
@@ -358,7 +359,7 @@ export const admin = {
   // Get all users for admin panel
   getAllUsers: async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/users`)
+      const response = await apiFetch(`/api/v1/admin/users`)
       const result = await response.json()
       return { data: result, error: null }
     } catch (error) {
@@ -372,7 +373,7 @@ export const admin = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/user-profiles`, {
+      const response = await apiFetch(`/api/v1/admin/user-profiles`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -425,7 +426,7 @@ export const admin = {
     try {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/food-items`, {
+      const response = await apiFetch(`/api/v1/admin/food-items`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const result = await response.json()
@@ -440,7 +441,7 @@ export const admin = {
     try {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/food-items`, {
+      const response = await apiFetch(`/api/v1/admin/food-items`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -461,7 +462,7 @@ export const admin = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/stations/reservations?date=${date}`, {
+      const response = await apiFetch(`/api/v1/admin/stations/reservations?date=${date}`, {
         headers: { 
           'Authorization': `Bearer ${token}`
         }
@@ -479,7 +480,7 @@ export const admin = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/${bookingId}/checkin?station_id=${stationId}`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/${bookingId}/checkin?station_id=${stationId}`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -499,7 +500,7 @@ export const admin = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/${bookingId}/timer/start`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/${bookingId}/timer/start`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -518,7 +519,7 @@ export const admin = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/${bookingId}/timer/stop`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/${bookingId}/timer/stop`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -538,7 +539,7 @@ export const admin = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/bookings/${bookingId}/receipt`, {
+      const response = await apiFetch(`/api/v1/admin/bookings/${bookingId}/receipt`, {
         headers: { 
           'Authorization': `Bearer ${token}`
         }
@@ -574,7 +575,7 @@ export const points = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/user/points`, {
+      const response = await apiFetch(`/api/v1/user/points`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const result = await response.json()
@@ -589,7 +590,7 @@ export const points = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/user/points/history`, {
+      const response = await apiFetch(`/api/v1/user/points/history`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const result = await response.json()
@@ -601,7 +602,7 @@ export const points = {
   
   getRewards: async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/points/rewards`)
+      const response = await apiFetch(`/api/v1/points/rewards`)
       const result = await response.json()
       return response.ok ? { data: result, error: null } : { data: null, error: { message: 'Failed to get rewards' } }
     } catch (error) {
@@ -614,7 +615,7 @@ export const points = {
       const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } }
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/points/redeem/${rewardId}`, {
+      const response = await apiFetch(`/api/v1/points/redeem/${rewardId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })

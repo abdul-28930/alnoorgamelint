@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
+import { apiFetch } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export default function AdminTournamentsPage() {
   const [tournaments, setTournaments] = useState<any[]>([])
@@ -31,7 +31,7 @@ export default function AdminTournamentsPage() {
       
       if (!token) return
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/tournaments`, {
+      const response = await apiFetch(`/api/v1/admin/tournaments`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -55,7 +55,7 @@ export default function AdminTournamentsPage() {
       const { data: { session } } = await (await import('@/lib/supabase')).auth.getSession()
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/tournaments`, {
+      const response = await apiFetch(`/api/v1/admin/tournaments`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -83,7 +83,7 @@ export default function AdminTournamentsPage() {
       const { data: { session } } = await (await import('@/lib/supabase')).auth.getSession()
       const token = session?.access_token
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/admin/tournaments/${tournamentId}/status?status=${status}`, {
+      const response = await apiFetch(`/api/v1/admin/tournaments/${tournamentId}/status?status=${status}`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
       })

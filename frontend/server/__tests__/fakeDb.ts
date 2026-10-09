@@ -8,7 +8,8 @@ export interface Call { method: string; args: unknown[] }
  * Minimal chainable stand-in for the Supabase client. `tables[name]` / `rpcs[name]` give the result of
  * awaiting any query on that table / rpc (a function receives the recorded chain, so tests can branch on it).
  */
-export function fakeDb(config: { tables?: Record<string, Resolver>; rpcs?: Record<string, Resolver> } = {}) {
+export function fakeDb(config: { tables?: Record<string, Resolver>; rpcs?: Record<string, Resolver>; users?: Record<string, string | null> } = {}) {
+  const lookups: string[] = []
   const log: { table?: string; rpc?: string; calls: Call[] }[] = []
 
   const builder = (entry: { calls: Call[] }, resolve: () => Result): unknown =>
@@ -26,6 +27,15 @@ export function fakeDb(config: { tables?: Record<string, Resolver>; rpcs?: Recor
     })
 
   const db = {
+    auth: {
+      admin: {
+        getUserById: (id: string) => {
+          lookups.push(id)
+          const email = config.users?.[id]
+          return Promise.resolve({ data: { user: email ? { email } : null }, error: null })
+        },
+      },
+    },
     from(table: string) {
       const entry = { table, calls: [] as Call[] }
       log.push(entry)
@@ -39,7 +49,7 @@ export function fakeDb(config: { tables?: Record<string, Resolver>; rpcs?: Recor
       return builder(entry, () => (typeof r === 'function' ? r(entry.calls) : r))
     },
   }
-  return { db: db as unknown as SupabaseClient, log }
+  return { db: db as unknown as SupabaseClient, log, lookups }
 }
 
 export const rpcArgs = (log: ReturnType<typeof fakeDb>['log'], name: string) =>

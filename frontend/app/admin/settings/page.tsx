@@ -5,6 +5,7 @@ import { NavBar } from '@/components/ui/navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { admin, auth } from '@/lib/supabase'
+import { apiError, apiFetch } from '@/lib/api'
 
 export default function AdminSettings() {
   const [adminEmails, setAdminEmails] = useState<string[]>([])
@@ -13,10 +14,13 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false)
   const [prepaidPlans, setPrepaidPlans] = useState<any[]>([])
   const [newPlan, setNewPlan] = useState({ name: '', price: 0, minutes: 0 })
+  const [pendingCards, setPendingCards] = useState<any[]>([])
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadAdminEmails()
     loadPrepaidPlans()
+    loadPendingCards()
   }, [])
 
   const loadAdminEmails = async () => {
@@ -37,7 +41,7 @@ export default function AdminSettings() {
       const token = session?.access_token
       if (!token) return
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/prepaid/plans`, {
+      const res = await apiFetch(`/api/v1/admin/prepaid/plans`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -47,6 +51,29 @@ export default function AdminSettings() {
     } catch (error) {
       console.error('Error loading prepaid plans:', error)
       setPrepaidPlans([])
+    }
+  }
+
+  // Neo Card requests wait here until staff have taken the payment at the counter
+  const loadPendingCards = async () => {
+    try {
+      const res = await apiFetch('/api/v1/admin/prepaid/cards?status=PENDING')
+      const data = await res.json()
+      setPendingCards(res.ok && Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error loading pending cards:', error)
+      setPendingCards([])
+    }
+  }
+
+  const confirmCard = async (id: string) => {
+    setConfirmingId(id)
+    try {
+      const res = await apiFetch(`/api/v1/admin/prepaid/cards/${id}/confirm`, { method: 'POST' })
+      if (!res.ok) alert(await apiError(res, 'Failed to activate card'))
+    } finally {
+      setConfirmingId(null)
+      loadPendingCards()
     }
   }
 
@@ -188,7 +215,7 @@ export default function AdminSettings() {
                     const token = session?.access_token
                     if (!token) return
 
-                    await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/prepaid/plans`, {
+                    await apiFetch(`/api/v1/admin/prepaid/plans`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -216,7 +243,7 @@ export default function AdminSettings() {
                       </span>
                       <button
                         onClick={async () => {
-                          await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/admin/prepaid/plans/${plan.id}`, {
+                          await apiFetch(`/api/v1/admin/prepaid/plans/${plan.id}`, {
                             method: 'DELETE',
                           })
                           loadPrepaidPlans()
@@ -224,6 +251,35 @@ export default function AdminSettings() {
                         className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700"
                       >
                         Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Neo Card requests awaiting payment */}
+            <div id="pending-cards" className="bg-cp-gray/20 border border-cp-cyan/20 rounded-lg p-6 mt-6">
+              <h2 className="text-cp-yellow font-bold text-xl mb-4">Pending Neo Card Requests</h2>
+              <p className="text-gray-300 mb-4">
+                Customers request a card online. Take the payment at the counter, then activate it so the minutes can be used.
+              </p>
+              <div className="space-y-2">
+                {pendingCards.length === 0 ? (
+                  <div className="text-gray-400 text-sm">No pending requests</div>
+                ) : (
+                  pendingCards.map((card: any) => (
+                    <div key={card.id} className="flex items-center justify-between bg-cp-black/30 rounded p-3 text-sm">
+                      <span className="text-white">
+                        {card.user_profiles?.full_name || card.user_profiles?.username || 'Customer'}
+                        {card.user_profiles?.phone ? ` (${card.user_profiles.phone})` : ''} • {card.prepaid_plans?.name} • ₹{card.prepaid_plans?.price} • {card.total_minutes} min
+                      </span>
+                      <button
+                        onClick={() => confirmCard(card.id)}
+                        disabled={confirmingId === card.id}
+                        className="bg-cp-cyan text-cp-black px-3 py-1 rounded text-xs hover:bg-cp-yellow disabled:opacity-50"
+                      >
+                        {confirmingId === card.id ? 'Activating...' : 'Payment received - Activate'}
                       </button>
                     </div>
                   ))
