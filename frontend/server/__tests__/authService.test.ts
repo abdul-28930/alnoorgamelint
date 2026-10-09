@@ -93,9 +93,11 @@ describe('resolveLoginEmail', () => {
 })
 
 describe('isUsernameAvailable / updateProfile', () => {
-  it('reports unavailable on errors', async () => {
-    expect(await isUsernameAvailable('x', fakeDb({ rpcError: true }).db)).toEqual({ available: false })
+  it('reports the real answer, and a failed check is an error, never "taken"', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(await isUsernameAvailable('x', fakeDb({ available: true }).db)).toEqual({ available: true })
+    expect(await isUsernameAvailable('x', fakeDb({ available: false }).db)).toEqual({ available: false })
+    await expect(isUsernameAvailable('x', fakeDb({ rpcError: true }).db)).rejects.toMatchObject({ status: 503 })
   })
   it('requires at least one field', async () => {
     await expect(updateProfile('u1', {}, fakeDb().db)).rejects.toMatchObject({ status: 400, message: 'No valid fields to update' })

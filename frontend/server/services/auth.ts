@@ -82,7 +82,12 @@ export async function resolveLoginEmail(emailOrUsername: string, db: SupabaseCli
 
 export async function isUsernameAvailable(username: string, db: SupabaseClient = getSupabase()) {
   const { data, error } = await db.rpc('is_username_available', { check_username: username })
-  return { available: error ? false : Boolean(data) }
+  if (error) {
+    // Do not report "taken" when the check itself failed (missing function, wrong keys, database down).
+    console.error('is_username_available failed:', error)
+    throw new ApiError(503, 'Could not check the username right now. Please try again.')
+  }
+  return { available: Boolean(data) }
 }
 
 export async function updateProfile(userId: string, input: z.infer<typeof profileUpdateSchema>, db: SupabaseClient = getSupabase()) {

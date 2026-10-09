@@ -19,6 +19,7 @@ function AuthPageContent() {
   const [error, setError] = useState('')
   const [usernameChecking, setUsernameChecking] = useState(false)
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
+  const [usernameCheckFailed, setUsernameCheckFailed] = useState(false)
   
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -28,10 +29,13 @@ function AuthPageContent() {
     if (username.length < 3) return
     setUsernameChecking(true)
     try {
-      const { data } = await profiles.checkUsername(username)
-      setUsernameAvailable(data)
+      const { data, error } = await profiles.checkUsername(username)
+      // a failed check is not the same as "taken": say so instead of blaming the name
+      setUsernameCheckFailed(Boolean(error))
+      setUsernameAvailable(error ? null : data)
     } catch (err) {
-      setUsernameAvailable(false)
+      setUsernameCheckFailed(true)
+      setUsernameAvailable(null)
     } finally {
       setUsernameChecking(false)
     }
@@ -154,6 +158,7 @@ function AuthPageContent() {
                   {usernameChecking && <p className="text-xs text-gray-400 mt-1">Checking availability...</p>}
                   {usernameAvailable === true && <p className="text-xs text-green-400 mt-1">✓ Username available</p>}
                   {usernameAvailable === false && <p className="text-xs text-red-400 mt-1">✗ Username taken</p>}
+                  {usernameCheckFailed && usernameAvailable === null && !usernameChecking && <p className="text-xs text-yellow-400 mt-1">Could not check the username right now. You can still try to sign up.</p>}
                 </div>
                 
                 <div>
