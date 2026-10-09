@@ -15,6 +15,8 @@ export interface PriceInput {
   foodTotal?: number
   discountType?: DiscountType | string | null
   discountValue?: number | null
+  /** Rupee amount already granted by a coupon at booking time. The old edit path silently dropped it. */
+  couponDiscount?: number | null
 }
 
 export interface PriceBreakdown {
@@ -31,10 +33,11 @@ export function computePrice(i: PriceInput): PriceBreakdown {
   if (i.discountType === 'PERCENTAGE') discount = Math.round((original * value) / 100)
   else if (i.discountType === 'AMOUNT') discount = Math.min(toPaise(value), original)
   discount = Math.max(0, discount)
+  const coupon = Math.max(0, toPaise(i.couponDiscount ?? 0))
   return {
     originalAmount: fromPaise(original),
     discountAmount: fromPaise(discount),
-    totalAmount: fromPaise(Math.max(0, original - discount)),
+    totalAmount: fromPaise(Math.max(0, original - discount - coupon)),
   }
 }
 
