@@ -1,7 +1,7 @@
 import { requireRole } from '@/server/auth'
 import { parseQuery, route } from '@/server/http'
 import { uuidParam } from '@/server/services/bookings'
-import { setTournamentStatus, tournamentStatusQuery } from '@/server/services/admin/catalog'
+import { setTournamentStatus, tournamentStatusQuery } from '@/server/services/admin/tournaments'
 
 export const dynamic = 'force-dynamic'
 
