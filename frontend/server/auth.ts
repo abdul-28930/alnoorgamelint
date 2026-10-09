@@ -1,4 +1,5 @@
 import 'server-only'
+import { timingSafeEqual } from 'node:crypto'
 import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTVerifyGetKey } from 'jose'
 import { getEnv } from './env'
 import { getSupabase } from './supabase'
@@ -109,5 +110,8 @@ export async function requireRole(req: Request, roles: Role[]): Promise<AuthUser
 /** For the reminders endpoint: protected by a shared secret instead of a user token. */
 export function requireCronSecret(req: Request): void {
   const secret = getEnv().CRON_SECRET
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) throw unauthorized('Invalid cron secret')
+  const given = Buffer.from(req.headers.get('authorization') ?? '')
+  const expected = Buffer.from(`Bearer ${secret ?? ''}`)
+  // constant-time compare; a missing secret never matches
+  if (!secret || given.length !== expected.length || !timingSafeEqual(given, expected)) throw unauthorized('Invalid cron secret')
 }
