@@ -55,7 +55,7 @@ function resolveKey(token: string): KeyInput {
 const ROLE_TTL_MS = 60_000
 const roleCache = new Map<string, { role: Role; expires: number }>()
 
-/** user_roles row wins; otherwise the email in admin_settings.admin_emails makes an admin. Cached 60 s. */
+/** The user_roles row gives the role; an email in admin_settings.admin_emails makes an admin regardless. Cached 60 s. */
 export async function getRole(userId: string, email: string): Promise<Role> {
   const hit = roleCache.get(userId)
   if (hit && hit.expires > Date.now()) return hit.role
@@ -69,13 +69,13 @@ export async function getRole(userId: string, email: string): Promise<Role> {
   // A failed lookup must not be cached (or silently demote an admin for a minute).
   if (roleRes.error || settingsRes.error) throw new ApiError(503, 'Service temporarily unavailable')
 
-  let role: Role = 'user'
-  if (roleRes.data?.role) {
-    role = roleRes.data.role as Role
-  } else if (email && settingsRes.data?.admin_emails) {
+  let role: Role = (roleRes.data?.role as Role | undefined) ?? 'user'
+  // Listing an email in admin_settings always makes an admin, even if a default 'user' row exists in user_roles
+  // (the admin screens' own check already works this way, so the two must agree).
+  if (role !== 'admin' && email && settingsRes.data?.admin_emails) {
     try {
       const emails: unknown = JSON.parse(settingsRes.data.admin_emails)
-      if (Array.isArray(emails) && emails.includes(email)) role = 'admin'
+      if (Array.isArray(emails) && emails.some((e) => typeof e === 'string' && e.toLowerCase() === email.toLowerCase())) role = 'admin'
     } catch {
       /* malformed admin_emails: treat as no admins */
     }
