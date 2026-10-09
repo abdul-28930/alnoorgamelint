@@ -110,3 +110,61 @@ export const STATUS_STYLE: Record<TournamentStatus, string> = {
   active: 'bg-cyan-900/60 text-cyan-300',
   completed: 'bg-purple-900/60 text-purple-300',
 }
+
+// ---- public side ----------------------------------------------------------------------------------
+
+export type PublicTournament = Omit<TournamentRow, 'id'> & {
+  id: string
+  banner_image?: string | null
+  prize_details?: string | null
+  rules?: string | null
+}
+
+export interface MyTeam {
+  id: string
+  name: string
+  is_captain: boolean
+  my_status: 'invited' | 'accepted'
+  entrant: { id: string; status: string; payment_status: string } | null
+  members: { name: string; status: string }[]
+}
+
+export interface PublicDetail {
+  tournament: PublicTournament
+  entrants: { id: string; display_name: string; seed: number | null; status: string; team_members: { name: string }[] }[]
+  matches: Match[]
+  rounds: number
+  standings: StandingRow[]
+  champion_name: string | null
+  me: { entrant: { id: string; status: string; payment_status: string } | null; teams: MyTeam[] } | null
+}
+
+export interface Invitation { team_id: string; team_name: string; tournament_id: string; tournament_name: string; captain: string }
+
+const pub = '/api/v1/tournaments'
+export const publicApi = {
+  list: () => call<PublicTournament[]>(pub),
+  detail: (id: string) => call<PublicDetail>(`${pub}/${id}`),
+  view: (id: string, visitor_id: string) => call<{ view_count: number }>(`${pub}/${id}/view`, { json: { visitor_id } }),
+  register: (id: string) => call<{ message: string }>(`${pub}/${id}/register`, { method: 'POST' }),
+  withdraw: (id: string) => call<{ message: string }>(`${pub}/${id}/register`, { method: 'DELETE' }),
+  createTeam: (id: string, name: string, usernames: string[]) => call<{ message: string }>(`${pub}/${id}/teams`, { json: { name, usernames } }),
+  invite: (id: string, teamId: string, username: string) => call<{ message: string }>(`${pub}/${id}/teams/${teamId}/invite`, { json: { username } }),
+  accept: (id: string, teamId: string) => call<{ message: string }>(`${pub}/${id}/teams/${teamId}/accept`, { method: 'POST' }),
+  leaveTeam: (id: string, teamId: string) => call<{ message: string }>(`${pub}/${id}/teams/${teamId}`, { method: 'DELETE' }),
+  invitations: () => call<Invitation[]>(`${pub}/invitations`),
+}
+
+/** Random id kept in this browser, so a repeat visitor counts once a day. */
+export function visitorId(): string {
+  try {
+    let v = localStorage.getItem('neo_visitor')
+    if (!v) {
+      v = (crypto.randomUUID?.() ?? `${Date.now()}${Math.random()}`.replace('.', '')).slice(0, 36)
+      localStorage.setItem('neo_visitor', v)
+    }
+    return v
+  } catch {
+    return `anon${Math.random().toString(36).slice(2, 12)}`
+  }
+}

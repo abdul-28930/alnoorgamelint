@@ -101,6 +101,16 @@ export async function authenticate(req: Request): Promise<AuthUser> {
   return { id, email, role: await getRole(id, email) }
 }
 
+/** Signed-in user if a valid token is sent, otherwise null. For public pages that show extra for players. */
+export async function tryAuthenticate(req: Request): Promise<AuthUser | null> {
+  if (!req.headers.get('authorization')) return null
+  try {
+    return await authenticate(req)
+  } catch {
+    return null
+  }
+}
+
 export async function requireRole(req: Request, roles: Role[]): Promise<AuthUser> {
   const user = await authenticate(req)
   if (!roles.includes(user.role)) throw forbidden()
