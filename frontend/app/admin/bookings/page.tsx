@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { bookings, admin } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
@@ -775,9 +774,8 @@ export default function AdminBookings() {
   return (
     <AdminGuard>
       <div className="min-h-screen">
-        <AdminNavBar />
         
-        <main className="pt-24 pb-12 px-6">
+        <main className="pt-6 pb-12 px-6">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="text-4xl font-bold text-cp-yellow">

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { admin } from '@/lib/supabase'
-import { NavBar } from './navbar'
 
 interface AdminGuardProps {
   children: React.ReactNode
@@ -30,20 +29,15 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cp-black">
-        <NavBar />
-        <div className="pt-24 flex items-center justify-center">
-          <div className="text-cp-cyan text-lg">Checking access...</div>
-        </div>
+      <div className="flex items-center justify-center pt-24">
+        <div className="text-cp-cyan text-lg">Checking access...</div>
       </div>
     )
   }
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-cp-black">
-        <NavBar />
-        <div className="pt-24 flex items-center justify-center">
+      <div className="flex items-center justify-center pt-24">
           <div className="text-center">
             <h1 className="text-4xl font-bold text-cp-yellow mb-4">Access Denied</h1>
             <p className="text-gray-300 mb-6">You don't have admin access</p>
@@ -54,7 +48,6 @@ export function AdminGuard({ children }: AdminGuardProps) {
               Go Home
             </button>
           </div>
-        </div>
       </div>
     )
   }

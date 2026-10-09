@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { ADMIN_NAV_GROUPS, isActive } from './admin-navbar'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ADMIN_NAV_GROUPS, isActive, readStoredState } from './admin-sidebar'
 
 describe('admin nav', () => {
   it('marks only the current page active', () => {
@@ -19,5 +19,27 @@ describe('admin nav', () => {
     for (const page of ['dashboard', 'bookings', 'stations', 'receipts', 'users', 'coupons', 'points', 'tournaments', 'analytics', 'reports', 'settings']) {
       expect(hrefs.some((h) => h.startsWith(`/admin/${page}`))).toBe(true)
     }
+  })
+})
+
+describe('remembered sidebar state', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const withStorage = (getItem: (k: string) => string | null) => vi.stubGlobal('window', { localStorage: { getItem } })
+
+  it('restores open / closed and ignores anything else', () => {
+    withStorage(() => 'open')
+    expect(readStoredState()).toBe('open')
+    withStorage(() => 'closed')
+    expect(readStoredState()).toBe('closed')
+    withStorage(() => 'banana')
+    expect(readStoredState()).toBeNull()
+    withStorage(() => null)
+    expect(readStoredState()).toBeNull()
+  })
+  it('does not break when storage is blocked', () => {
+    withStorage(() => {
+      throw new Error('SecurityError')
+    })
+    expect(readStoredState()).toBeNull()
   })
 })
