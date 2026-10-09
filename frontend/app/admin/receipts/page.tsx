@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { NavBar } from '@/components/ui/navbar'
 import { AdminGuard } from '@/components/ui/admin-guard'
-import { AdminNavBar } from '@/components/ui/admin-navbar'
 import { bookings, admin } from '@/lib/supabase'
 
 export default function AdminReceipts() {
@@ -60,11 +58,7 @@ export default function AdminReceipts() {
   return (
     <AdminGuard>
       <div className="min-h-screen bg-cp-black">
-        <NavBar />
         
-        <div className="mt-20">
-          <AdminNavBar />
-        </div>
         
         <main className="pt-6 pb-12 px-6">
           <div className="max-w-7xl mx-auto">
