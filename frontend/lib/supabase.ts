@@ -355,21 +355,6 @@ export const admin = {
     } finally {
       clearTimeout(timer)
     }
-    if (!supabase) return { data: false, error: { message: 'Supabase not configured' } }
-    
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { data: false, error: { message: 'Not authenticated' } }
-    
-    const { data: settings } = await supabase
-      .from('admin_settings')
-      .select('admin_emails')
-      .single()
-    
-    if (!settings?.admin_emails) return { data: false, error: { message: 'No admin emails configured' } }
-    
-    const adminEmails = JSON.parse(settings.admin_emails)
-    const mine = (user.email ?? '').toLowerCase()
-    return { data: Array.isArray(adminEmails) && adminEmails.some((e: unknown) => typeof e === 'string' && e.toLowerCase() === mine), error: null }
   },
 
   // Get all users for admin panel
