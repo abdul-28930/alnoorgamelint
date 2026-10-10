@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { NavBar } from '@/components/ui/navbar'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { StandingsTable } from '@/components/tournaments/standings-table'
+import { ShareButton } from '@/components/tournaments/share-button'
 import { publicApi, visitorId, type PublicDetail } from '@/lib/tournaments'
 
 const btn = 'rounded px-4 py-2 font-semibold disabled:opacity-50'
@@ -67,11 +68,26 @@ export default function TournamentPage() {
       <NavBar />
       <main className="mx-auto max-w-6xl px-6 pb-16 pt-24">
         <Link href="/tournaments" className="text-sm text-cp-cyan">← All tournaments</Link>
-        <h1 className="mb-1 mt-2 text-4xl font-bold text-cp-yellow md:text-5xl">{t.name}</h1>
-        <p className="mb-4 text-gray-400">
-          {t.game} · {t.platform} · {t.tournament_type === 'knockout' ? 'Single elimination' : 'Round robin'} · best of {t.best_of}
-          {team ? ` · teams of ${t.team_size}` : ''}
-        </p>
+        {t.banner_image && (
+          <div className="mb-4 mt-3 overflow-hidden rounded-lg border border-cp-cyan/20">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={t.banner_image} alt={`${t.name} banner`} className="max-h-72 w-full object-cover" />
+          </div>
+        )}
+        <div className="mb-4 mt-2 flex flex-col gap-4 sm:flex-row sm:items-start">
+          {t.poster_image && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={t.poster_image} alt={`${t.name} poster`} className="w-40 shrink-0 rounded-lg border border-cp-cyan/20 sm:w-48" />
+          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="mb-1 text-4xl font-bold text-cp-yellow md:text-5xl">{t.name}</h1>
+            <p className="mb-4 text-gray-400">
+              {t.game} · {t.platform} · {t.tournament_type === 'knockout' ? 'Single elimination' : 'Round robin'} · best of {t.best_of}
+              {team ? ` · teams of ${t.team_size}` : ''}
+            </p>
+            <ShareButton title={t.name} text={`Join ${t.name} (${t.game}) at Neo Gaming Cafe!`} />
+          </div>
+        </div>
 
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-lg bg-cp-gray/20 p-3 text-center"><div className="text-2xl font-bold text-cp-cyan">{t.registered_count}/{t.max_players}</div><div className="text-xs text-gray-400">registered (live)</div></div>

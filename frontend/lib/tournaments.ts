@@ -1,5 +1,6 @@
 import { apiFetch, apiError } from './api'
 
+export type ImageKind = 'banner' | 'poster'
 export type TournamentStatus = 'draft' | 'open' | 'paused' | 'active' | 'completed'
 
 export interface TournamentRow {
@@ -18,6 +19,8 @@ export interface TournamentRow {
   entry_fee: number
   prize_pool: number
   description?: string
+  banner_image?: string | null
+  poster_image?: string | null
   registered_count: number
   waitlist_count: number
   view_count: number
@@ -95,6 +98,12 @@ export const api = {
   addEntrant: (id: string, body: { display_name?: string; username?: string }) => call(`${base}/tournaments/${id}/entrants`, { json: body }),
   updateEntrant: (id: string, entrantId: string, body: Record<string, unknown>) =>
     call(`${base}/tournaments/${id}/entrants/${entrantId}`, { method: 'PUT', json: body }),
+  uploadImage: async (id: string, kind: ImageKind, file: Blob) => {
+    const body = new FormData()
+    body.append('file', file, 'image.jpg')
+    return call<{ url: string }>(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'POST', body })
+  },
+  removeImage: (id: string, kind: ImageKind) => call(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'DELETE' }),
   removeEntrant: (id: string, entrantId: string) => call(`${base}/tournaments/${id}/entrants/${entrantId}`, { method: 'DELETE' }),
   preview: (id: string, order?: string[]) => call<{ order: { id: string; seed: number; display_name: string }[]; matches: Match[] }>(`${base}/tournaments/${id}/bracket/preview`, { json: { order } }),
   generate: (id: string, order?: string[]) => call<TournamentDetail>(`${base}/tournaments/${id}/bracket`, { json: { order } }),
@@ -168,3 +177,36 @@ export function visitorId(): string {
     return `anon${Math.random().toString(36).slice(2, 12)}`
   }
 }
+
+/**
+ * Shrinks a picked image in the browser before upload (the server accepts about 4 MB), keeping its shape.
+ * Banners are wide, posters are tall; either way the longest side is capped.
+ */
+export async function shrinkImage(file: File, maxSide: number): Promise<Blob> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file')
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('That image could not be read'))
+      el.src = url
+    })
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Your browser cannot process images')
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))
+    if (!blob) throw new Error('Your browser cannot process images')
+    return blob
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+export const MAX_SIDE: Record<ImageKind, number> = { banner: 1800, poster: 1400 }

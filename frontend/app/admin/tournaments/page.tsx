@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AdminGuard } from '@/components/ui/admin-guard'
-import { api, STATUS_STYLE, type TournamentRow } from '@/lib/tournaments'
+import { api, MAX_SIDE, shrinkImage, STATUS_STYLE, type ImageKind, type TournamentRow } from '@/lib/tournaments'
 
 const blank = {
   name: '', game: '', platform: 'PC', tournament_type: 'knockout', max_players: 8, team_size: 1, best_of: 1,
@@ -20,6 +20,7 @@ export default function AdminTournamentsPage() {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ ...blank })
   const [busy, setBusy] = useState(false)
+  const [files, setFiles] = useState<Partial<Record<ImageKind, File>>>({})
 
   const load = useCallback(async () => {
     try {
@@ -46,7 +47,19 @@ export default function AdminTournamentsPage() {
     try {
       const body: Record<string, unknown> = { ...form }
       for (const k of ['starts_at', 'registration_closes_at', 'prize_details', 'rules'] as const) if (!body[k]) delete body[k]
-      await api.create(body)
+      const { id } = await api.create(body)
+      const failed: string[] = []
+      for (const kind of ['banner', 'poster'] as const) {
+        const file = files[kind]
+        if (!file) continue
+        try {
+          await api.uploadImage(id, kind, await shrinkImage(file, MAX_SIDE[kind]))
+        } catch (e) {
+          failed.push(`${kind}: ${(e as Error).message}`)
+        }
+      }
+      setFiles({})
+      if (failed.length) setError(`Tournament created, but an image failed (${failed.join('; ')}). Add it from the tournament page.`)
       setCreating(false)
       setForm({ ...blank })
       await load()
@@ -80,7 +93,7 @@ export default function AdminTournamentsPage() {
                 <label>Game<input className={input} value={form.game} onChange={(e) => set('game', e.target.value)} /></label>
                 <label>Platform
                   <select className={input} value={form.platform} onChange={(e) => set('platform', e.target.value)}>
-                    {['PC', 'PS5', 'PS4', 'Xbox', 'Switch', 'Mobile'].map((p) => <option key={p}>{p}</option>)}
+                    {['PC', 'PS5'].map((p) => <option key={p}>{p}</option>)}
                   </select>
                 </label>
                 <label>Format
@@ -111,6 +124,11 @@ export default function AdminTournamentsPage() {
                 ) : (
                   <label className="flex items-center gap-2 pt-6"><input type="checkbox" checked={form.double_round_robin} onChange={(e) => set('double_round_robin', e.target.checked)} />Home and away (play twice)</label>
                 )}
+                {(['banner', 'poster'] as const).map((kind) => (
+                  <label key={kind} className="capitalize md:col-span-1">{kind} image <span className="text-xs normal-case text-gray-500">(optional)</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className={input} onChange={(e) => setFiles((f) => ({ ...f, [kind]: e.target.files?.[0] }))} />
+                  </label>
+                ))}
                 <label className="md:col-span-3">Description<textarea rows={2} className={input} value={form.description} onChange={(e) => set('description', e.target.value)} /></label>
                 <label className="md:col-span-3">Prize details<input className={input} value={form.prize_details} onChange={(e) => set('prize_details', e.target.value)} /></label>
                 <label className="md:col-span-3">Rules<textarea rows={3} className={input} value={form.rules} onChange={(e) => set('rules', e.target.value)} /></label>

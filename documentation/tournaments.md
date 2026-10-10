@@ -92,6 +92,17 @@ Entry fees are shown only; staff mark entrants paid in the admin screen.
 Pages: `/tournaments` (list with live counts and your invitations) and `/tournaments/{id}` (sign-up, team management,
 rules and prizes, live bracket or table). Both refresh every 8-10 seconds.
 
+## Poster, banner and sharing
+
+Run `sql/setup/09_tournament_images.sql` (adds `poster_image`, a public `tournament-images` storage bucket, and rebuilds the
+`tournament_overview` view). Admins upload from the create form or the tournament's "Poster and banner" panel
+(`POST`/`DELETE /api/v1/admin/tournaments/{id}/image?kind=banner|poster`). The browser shrinks the picture first; the server
+accepts JPEG, PNG or WebP up to 4 MB (checked by file content) and replaces the old file.
+
+Every public tournament page has Share / Copy link / WhatsApp buttons, and the page sets Open Graph tags (title, summary,
+banner or poster) so a shared link shows a preview. Set `NEXT_PUBLIC_SITE_URL` (for example `https://neogamingcafe.vercel.app`)
+so the preview image links are absolute on every deployment.
+
 ## Status
 
 1. **Foundation**: database, bracket and standings engine, tests. Done.

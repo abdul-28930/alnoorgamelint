@@ -55,6 +55,10 @@ export default function TournamentsPage() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {rows.map((t) => (
               <Link key={t.id} href={`/tournaments/${t.id}`} className="block rounded-lg border border-cp-cyan/20 bg-cp-gray/20 p-5 transition hover:border-cp-cyan">
+                {(t.banner_image || t.poster_image) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={(t.banner_image || t.poster_image) as string} alt="" className="-mx-5 -mt-5 mb-3 h-32 w-[calc(100%+2.5rem)] max-w-none rounded-t-lg object-cover" />
+                )}
                 <div className={`mb-1 text-xs font-semibold uppercase ${COLOR[t.status]}`}>{LABEL[t.status] ?? t.status}</div>
                 <h2 className="text-xl font-bold text-cp-yellow">{t.name}</h2>
                 <p className="mb-3 text-sm text-gray-400">
