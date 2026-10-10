@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { NavBar } from '@/components/ui/navbar'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { StandingsTable } from '@/components/tournaments/standings-table'
+import { Markdown } from '@/components/ui/markdown'
 import { ShareButton } from '@/components/tournaments/share-button'
 import { publicApi, visitorId, type PublicDetail } from '@/lib/tournaments'
 
@@ -157,7 +158,13 @@ export default function TournamentPage() {
             {t.starts_at && <p>🗓 Starts {new Date(t.starts_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST</p>}
             {t.description && <p>{t.description}</p>}
             {t.prize_details && <p><b className="text-cp-yellow">Prizes:</b> {t.prize_details}</p>}
-            {t.rules && <div><b className="text-cp-yellow">Rules</b><p className="whitespace-pre-line">{t.rules}</p></div>}
+          </section>
+        )}
+
+        {t.rules && (
+          <section className="mb-8 rounded-lg border border-cp-cyan/20 bg-cp-gray/20 p-5">
+            <h2 className="mb-3 text-2xl font-bold text-cp-yellow">Rules</h2>
+            <Markdown>{t.rules}</Markdown>
           </section>
         )}
 

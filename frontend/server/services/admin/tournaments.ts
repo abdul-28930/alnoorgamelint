@@ -87,7 +87,7 @@ const settings = {
   entry_fee: z.number().finite().min(0).max(1_000_000),
   prize_pool: z.number().finite().min(0).max(100_000_000),
   prize_details: z.string().trim().max(1000).nullable(),
-  rules: z.string().trim().max(5000).nullable(),
+  rules: z.string().trim().max(10000).nullable(),
   description: z.string().trim().max(2000).nullable(),
   banner_image: z.string().trim().max(500).nullable(),
   poster_image: z.string().trim().max(500).nullable(),

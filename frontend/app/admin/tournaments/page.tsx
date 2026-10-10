@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AdminGuard } from '@/components/ui/admin-guard'
+import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { api, MAX_SIDE, shrinkImage, STATUS_STYLE, type ImageKind, type TournamentRow } from '@/lib/tournaments'
 
 const blank = {
@@ -131,7 +132,7 @@ export default function AdminTournamentsPage() {
                 ))}
                 <label className="md:col-span-3">Description<textarea rows={2} className={input} value={form.description} onChange={(e) => set('description', e.target.value)} /></label>
                 <label className="md:col-span-3">Prize details<input className={input} value={form.prize_details} onChange={(e) => set('prize_details', e.target.value)} /></label>
-                <label className="md:col-span-3">Rules<textarea rows={3} className={input} value={form.rules} onChange={(e) => set('rules', e.target.value)} /></label>
+                <div className="md:col-span-3"><div className="mb-1">Rules (Markdown, shown on the tournament page)</div><MarkdownEditor value={form.rules} onChange={(v) => set('rules', v)} /></div>
               </div>
               <button disabled={busy || !form.name || !form.game} onClick={create} className="mt-4 rounded bg-green-600 px-5 py-2 font-semibold disabled:opacity-50">
                 {busy ? 'Creating…' : 'Create as draft'}

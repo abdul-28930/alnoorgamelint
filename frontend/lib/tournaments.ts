@@ -21,6 +21,7 @@ export interface TournamentRow {
   description?: string
   banner_image?: string | null
   poster_image?: string | null
+  rules?: string | null
   registered_count: number
   waitlist_count: number
   view_count: number
