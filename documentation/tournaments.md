@@ -92,6 +92,13 @@ Entry fees are shown only; staff mark entrants paid in the admin screen.
 Pages: `/tournaments` (list with live counts and your invitations) and `/tournaments/{id}` (sign-up, team management,
 rules and prizes, live bracket or table). Both refresh every 8-10 seconds.
 
+## Rules in Markdown
+
+The `rules` field is Markdown (up to 10,000 characters). The create form and the manage page ("Rules (Markdown)") have an
+editor with Bold / Italic / Heading / list buttons, an **Insert template** button (format, settings, check-in, disconnects,
+prizes) and a live preview. The public tournament page shows it in a "Rules" section. Raw HTML and images in the text are
+never rendered, and links open in a new tab.
+
 ## Poster, banner and sharing
 
 Run `sql/setup/09_tournament_images.sql` (adds `poster_image`, a public `tournament-images` storage bucket, and rebuilds the

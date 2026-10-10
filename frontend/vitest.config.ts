@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 
 export default defineConfig({
+  esbuild: { jsx: 'automatic' }, // components use the new JSX transform (no React import)
   test: { include: ['server/**/*.test.ts', 'lib/**/*.test.ts', 'components/**/*.test.ts'], environment: 'node' },
   resolve: {
     alias: {

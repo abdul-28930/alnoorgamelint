@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { StandingsTable } from '@/components/tournaments/standings-table'
+import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
 import { api, STATUS_STYLE, type Entrant, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
@@ -30,6 +31,7 @@ export default function ManageTournamentPage() {
   const [newName, setNewName] = useState('')
   const [order, setOrder] = useState<string[] | null>(null)
   const [preview, setPreview] = useState<Match[] | null>(null)
+  const [rules, setRules] = useState<string | null>(null) // null = not edited
   const [scores, setScores] = useState<Record<string, { a: string; b: string }>>({})
 
   const load = useCallback(async () => {
@@ -156,6 +158,18 @@ export default function ManageTournamentPage() {
             <div className="mt-4 grid gap-6 sm:grid-cols-2">
               <ImageSlot id={id} kind="banner" url={t.banner_image} onChange={load} />
               <ImageSlot id={id} kind="poster" url={t.poster_image} onChange={load} />
+            </div>
+          </details>
+
+          <details className="mb-6 rounded-lg bg-gray-900 p-4">
+            <summary className="cursor-pointer font-semibold">Rules (Markdown)</summary>
+            <div className="mt-4 space-y-3">
+              <MarkdownEditor value={rules ?? t.rules ?? ''} onChange={setRules} rows={14} />
+              <button
+                disabled={busy || rules === null}
+                className={`${btn} bg-green-600`}
+                onClick={() => run(async () => { await api.update(id, { rules: (rules ?? '').trim() || null }); setRules(null) })}
+              >Save rules</button>
             </div>
           </details>
 
