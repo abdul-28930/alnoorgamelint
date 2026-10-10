@@ -90,6 +90,7 @@ const settings = {
   rules: z.string().trim().max(5000).nullable(),
   description: z.string().trim().max(2000).nullable(),
   banner_image: z.string().trim().max(500).nullable(),
+  poster_image: z.string().trim().max(500).nullable(),
   starts_at: instant.nullable(),
   registration_closes_at: instant.nullable(),
 }
@@ -111,6 +112,7 @@ export const tournamentSchema = z.object({
   rules: settings.rules.optional(),
   description: settings.description.default(''),
   banner_image: settings.banner_image.default(''),
+  poster_image: settings.poster_image.optional(),
   starts_at: settings.starts_at.optional(),
   registration_closes_at: settings.registration_closes_at.optional(),
 })
@@ -547,4 +549,59 @@ export async function getTournamentDetail(tournamentId: string, db: SupabaseClie
     standings,
     champion_name: t.champion_entrant_id ? names.get(t.champion_entrant_id) ?? null : null,
   }
+}
+
+// ---- poster and banner images -------------------------------------------------------------------
+
+export const IMAGE_BUCKET = 'tournament-images'
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024 // Vercel functions accept about 4.5 MB request bodies
+export const imageKind = z.enum(['banner', 'poster'])
+export type ImageKind = z.infer<typeof imageKind>
+
+/** Decides the type from the file's first bytes, never from the name or the browser's claim. */
+export function sniffImage(bytes: Uint8Array): { type: string; ext: string } | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { type: 'image/jpeg', ext: 'jpg' }
+  if (bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((b, i) => bytes[i] === b)) return { type: 'image/png', ext: 'png' }
+  if (bytes.length >= 12 && String.fromCharCode(...Array.from(bytes.slice(0, 4))) === 'RIFF' && String.fromCharCode(...Array.from(bytes.slice(8, 12))) === 'WEBP') return { type: 'image/webp', ext: 'webp' }
+  return null
+}
+
+function storagePath(url: string | null | undefined): string | null {
+  const marker = `/${IMAGE_BUCKET}/`
+  const i = url ? url.indexOf(marker) : -1
+  return url && i >= 0 ? decodeURIComponent(url.slice(i + marker.length).split('?')[0]) : null
+}
+
+export async function setTournamentImage(tournamentId: string, kind: ImageKind, bytes: Uint8Array, db: SupabaseClient = getSupabase()) {
+  if (bytes.length === 0) throw badRequest('Choose an image')
+  if (bytes.length > MAX_IMAGE_BYTES) throw badRequest('The image is too large (4 MB at most)')
+  const found = sniffImage(bytes)
+  if (!found) throw badRequest('Use a JPEG, PNG or WebP image')
+  const t = await loadTournament(db, tournamentId)
+
+  // a new file name every time, so browsers and link previews never keep showing the old picture
+  const path = `${tournamentId}/${kind}-${Date.now()}.${found.ext}`
+  const { error } = await db.storage.from(IMAGE_BUCKET).upload(path, bytes, { contentType: found.type, upsert: false })
+  if (error) throw fail('Failed to upload the image', error)
+  const url = db.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl
+
+  const column = `${kind}_image`
+  const { error: updateError } = await db.from('tournaments').update({ [column]: url }).eq('id', tournamentId)
+  if (updateError) {
+    await db.storage.from(IMAGE_BUCKET).remove([path])
+    throw fail('Failed to save the image', updateError)
+  }
+  const old = storagePath(t[column])
+  if (old) await db.storage.from(IMAGE_BUCKET).remove([old])
+  return { url }
+}
+
+export async function removeTournamentImage(tournamentId: string, kind: ImageKind, db: SupabaseClient = getSupabase()) {
+  const t = await loadTournament(db, tournamentId)
+  const column = `${kind}_image`
+  const { error } = await db.from('tournaments').update({ [column]: null }).eq('id', tournamentId)
+  if (error) throw fail('Failed to remove the image', error)
+  const old = storagePath(t[column])
+  if (old) await db.storage.from(IMAGE_BUCKET).remove([old])
+  return { message: 'Image removed' }
 }

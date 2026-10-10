@@ -6,6 +6,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { StandingsTable } from '@/components/tournaments/standings-table'
+import { ImageSlot } from '@/components/tournaments/image-slot'
+import { ShareButton } from '@/components/tournaments/share-button'
 import { api, STATUS_STYLE, type Entrant, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
 
 const NEXT: Record<TournamentStatus, { to: TournamentStatus; label: string }[]> = {
@@ -141,6 +143,21 @@ export default function ManageTournamentPage() {
             <div className="rounded-lg bg-gray-900 p-3 text-center"><div className="text-2xl font-bold text-yellow-400">{t.waitlist_count}</div><div className="text-xs text-gray-400">waitlist</div></div>
             <div className="rounded-lg bg-gray-900 p-3 text-center"><div className="text-2xl font-bold text-purple-400">{t.view_count}</div><div className="text-xs text-gray-400">views</div></div>
           </div>
+
+          {t.status !== 'draft' && (
+            <div className="mb-6 rounded-lg bg-gray-900 p-4">
+              <div className="mb-2 text-sm text-gray-400">Public page: <a className="text-cyan-400 underline" href={`/tournaments/${id}`} target="_blank" rel="noopener noreferrer">/tournaments/{id.slice(0, 8)}…</a></div>
+              <ShareButton title={t.name} text={`Join ${t.name} (${t.game}) at Neo Gaming Cafe!`} />
+            </div>
+          )}
+
+          <details className="mb-6 rounded-lg bg-gray-900 p-4" open={!t.banner_image && !t.poster_image}>
+            <summary className="cursor-pointer font-semibold">Poster and banner</summary>
+            <div className="mt-4 grid gap-6 sm:grid-cols-2">
+              <ImageSlot id={id} kind="banner" url={t.banner_image} onChange={load} />
+              <ImageSlot id={id} kind="poster" url={t.poster_image} onChange={load} />
+            </div>
+          </details>
 
           {error && <div className="mb-4 rounded-lg border border-red-600 bg-red-900/50 p-3 text-red-300">{error}</div>}
 
