@@ -11,6 +11,11 @@ const schema = z.object({
   SMTP_USERNAME: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  // WhatsApp (Ten Digit / My Dreams Technology). Server only; nothing is sent without both keys.
+  WHATSAPP_LICENSE_NUMBER: z.string().optional(),
+  WHATSAPP_API_KEY: z.string().optional(),
+  WHATSAPP_API_BASE: z.string().url().default('https://login.tendigit.in/api'),
+  WHATSAPP_ENABLED: z.enum(['true', 'false']).default('true'),
 })
 
 export type Env = z.infer<typeof schema>

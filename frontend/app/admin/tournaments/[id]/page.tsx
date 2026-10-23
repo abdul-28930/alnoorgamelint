@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { StandingsTable } from '@/components/tournaments/standings-table'
+import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
@@ -122,6 +123,22 @@ export default function ManageTournamentPage() {
     )
   }
 
+  // WhatsApp the players of this match that it is coming up
+  const callPlayers = (m: Match) =>
+    run(async () => {
+      const r = await api.callMatch(m.id)
+      const sent = r.called.filter((c) => c.status === 'sent').length
+      const dup = r.called.filter((c) => c.status === 'duplicate').length
+      const bad = r.called.filter((c) => !['sent', 'duplicate'].includes(c.status))
+      setNotice(
+        `Match call: ${sent} sent${dup ? `, ${dup} already called in the last 5 minutes` : ''}${bad.length ? `. Not sent: ${bad.map((b) => `${b.name} (${b.detail ?? b.status})`).join('; ')}` : ''}.`,
+      )
+    })
+  const callButton = (m: Match) =>
+    (m.status === 'ready' || m.status === 'live') && (m.entrant1_id || m.entrant2_id) ? (
+      <button className={`${btn} w-full bg-cyan-800`} disabled={busy} onClick={() => callPlayers(m)}>Call players on WhatsApp</button>
+    ) : null
+
   const actions = (m: Match) => {
     if (t.status !== 'active' || m.status === 'bye' || m.status === 'pending') {
       return m.status === 'completed' && t.status !== 'completed' ? <button className={`${btn} bg-gray-700`} disabled={busy} onClick={() => run(() => api.undo(m.id))}>Undo</button> : null
@@ -138,6 +155,7 @@ export default function ManageTournamentPage() {
               <button key={eid} className={`${btn} flex-1 truncate bg-yellow-700`} disabled={busy} onClick={() => report(m, eid, true)}>Qualify {name}</button>
             ))}
           </div>
+          {callButton(m)}
         </div>
       )
     }
@@ -166,6 +184,7 @@ export default function ManageTournamentPage() {
             <button key={eid} className={`${btn} bg-yellow-800 text-xs`} disabled={busy} onClick={() => report(m, eid, true)}>{other} no-show</button>
           ))}
         </div>
+        {callButton(m)}
       </div>
     )
   }
@@ -228,6 +247,11 @@ export default function ManageTournamentPage() {
               <ImageSlot id={id} kind="banner" url={t.banner_image} onChange={load} />
               <ImageSlot id={id} kind="poster" url={t.poster_image} onChange={load} />
             </div>
+          </details>
+
+          <details className="mb-6 rounded-lg bg-gray-900 p-4">
+            <summary className="cursor-pointer font-semibold">Send WhatsApp notification</summary>
+            <div className="mt-4"><NotifyPanel id={id} tournamentName={t.name} matches={d.matches} /></div>
           </details>
 
           <details className="mb-6 rounded-lg bg-gray-900 p-4">

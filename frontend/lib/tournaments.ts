@@ -110,12 +110,24 @@ export const api = {
   removeImage: (id: string, kind: ImageKind) => call(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'DELETE' }),
   reshuffle: (id: string, replaceFromWaitlist = true) =>
     call<{ reshuffled: boolean; replaced: number; no_shows: number; present: number }>(`${base}/tournaments/${id}/bracket/reshuffle`, { json: { replace_from_waitlist: replaceFromWaitlist } }),
+  notifyPreview: (id: string, audience: string, round?: number) =>
+    call<NotifyPreview>(`${base}/tournaments/${id}/notify/preview?audience=${audience}${round ? `&round=${round}` : ''}`),
+  notifyStart: (id: string, body: { audience: string; round?: number; message: string; batch_id: string }) =>
+    call<NotifyProgress>(`${base}/tournaments/${id}/notify`, { json: body }),
+  notifyContinue: (id: string, batch_id: string) => call<NotifyProgress>(`${base}/tournaments/${id}/notify/continue`, { json: { batch_id } }),
+  callMatch: (matchId: string) => call<{ called: { name: string; status: string; detail?: string }[] }>(`${base}/tournament-matches/${matchId}/call`, { method: 'POST' }),
   removeEntrant: (id: string, entrantId: string) => call(`${base}/tournaments/${id}/entrants/${entrantId}`, { method: 'DELETE' }),
   preview: (id: string, order?: string[]) => call<{ order: { id: string; seed: number; display_name: string }[]; matches: Match[] }>(`${base}/tournaments/${id}/bracket/preview`, { json: { order } }),
   generate: (id: string, order?: string[]) => call<TournamentDetail>(`${base}/tournaments/${id}/bracket`, { json: { order } }),
   result: (matchId: string, body: Record<string, unknown>) => call(`${base}/tournament-matches/${matchId}/result`, { method: 'PUT', json: body }),
   undo: (matchId: string) => call(`${base}/tournament-matches/${matchId}/result`, { method: 'DELETE' }),
   match: (matchId: string, body: Record<string, unknown>) => call(`${base}/tournament-matches/${matchId}`, { method: 'PUT', json: body }),
+}
+
+export interface NotifyPreview { entrants: number; people: number; with_number: number; without_number: number; sample: string[] }
+export interface NotifyProgress {
+  batch_id: string; people?: number; sent: number; failed: number; unconfirmed: number; remaining: number
+  totals: { pending: number; sent: number; failed: number; unconfirmed: number; skipped: number }
 }
 
 export const STATUS_STYLE: Record<TournamentStatus, string> = {
