@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { ApiError, badRequest, notFound } from '../http'
 import { getSupabase } from '../supabase'
 import { getTournamentDetail, promoteWaitlist } from './admin/tournaments'
+import { notifyEntrants } from './tournamentNotifications'
 
 type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -150,6 +151,7 @@ export async function registerForTournament(userId: string, tournamentId: string
   if (error?.code === '23505') throw badRequest('Already registered')
   if (error) throw fail('Failed to register', error)
   if (!data) throw fail('Failed to register', 'insert returned no row')
+  await notifyEntrants(db, tournamentId, [data.id as string], 'registered') // WhatsApp; never blocks or fails the sign-up
   return { message: row.status === 'waitlist' ? 'The tournament is full. You are on the waitlist' : 'Registered successfully', status: row.status }
 }
 
@@ -187,8 +189,9 @@ async function enterTeamIfComplete(db: SupabaseClient, t: Row, team: Row): Promi
   if ((count ?? 0) < t.team_size) return false
   const { data: fresh } = await db.from('tournament_overview').select('registered_count, max_players').eq('id', t.id).maybeSingle()
   const row = entrantRow({ ...t, ...(fresh ?? {}) }, { team_id: team.id, display_name: team.name })
-  const { error } = await db.from('tournament_entrants').insert(row)
+  const { data: created, error } = await db.from('tournament_entrants').insert(row).select('id').maybeSingle()
   if (error && error.code !== '23505') throw fail('Failed to register the team', error)
+  if (created?.id) await notifyEntrants(db, t.id as string, [created.id as string], 'registered')
   return true
 }
 

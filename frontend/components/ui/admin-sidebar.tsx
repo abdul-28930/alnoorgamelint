@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
-  BarChart3, CalendarDays, CreditCard, FileText, Gamepad2, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Receipt, Settings, Star,
+  BarChart3, CalendarDays, CreditCard, FileText, Gamepad2, LayoutDashboard, MessageCircle, PanelLeftClose, PanelLeftOpen, Receipt, Settings, Star,
   Ticket, Trophy, Users, type LucideIcon,
 } from 'lucide-react'
 import { NavBar } from './navbar'
@@ -40,7 +40,7 @@ export const ADMIN_NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { label: 'Reports', href: '/admin/reports', icon: FileText },
     ],
   },
-  { label: 'System', items: [{ label: 'Settings', href: '/admin/settings', icon: Settings }] },
+  { label: 'System', items: [{ label: 'WhatsApp', href: '/admin/whatsapp', icon: MessageCircle }, { label: 'Settings', href: '/admin/settings', icon: Settings }] },
 ]
 
 /** A link is current when the path matches its page. Links that point at a section of another page (#hash) are never "current". */
