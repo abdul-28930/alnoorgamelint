@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { AuthUser } from '../auth'
 import { ApiError, badRequest, notFound } from '../http'
 import { sendBookingConfirmation } from '../mailer'
+import { notifyBookingCreated } from './bookingNotifications'
 import { effectiveStatus } from '../status'
 import { getSupabase } from '../supabase'
 import { addHoursIst, istDate, toIstString } from '../time'
@@ -114,15 +115,15 @@ export async function createBooking(user: AuthUser, input: CreateBookingInput, d
   if (error || !data) throw mapRpcError(error, 'Failed to create booking')
   const booking = data as Record<string, unknown> & { id: string; station_id: string | null }
 
-  // Best effort: a mail problem must never fail a booking that is already saved.
+  // Best effort: a mail or WhatsApp problem must never fail a booking that is already saved.
+  let station: { name: string | null; type: string | null } = { name: null, type: input.station_type ?? null }
+  if (booking.station_id) {
+    const { data: s } = await db.from('stations').select('name, type').eq('id', booking.station_id).maybeSingle()
+    station = { name: (s?.name as string | undefined) ?? null, type: (s?.type as string | undefined) ?? station.type }
+  }
   if (user.email) {
-    let stationName: string | null = null
-    if (booking.station_id) {
-      const { data: s } = await db.from('stations').select('name').eq('id', booking.station_id).maybeSingle()
-      stationName = (s?.name as string | undefined) ?? null
-    }
     await sendBookingConfirmation(user.email, {
-      station_name: stationName,
+      station_name: station.name,
       date: times.start_at.slice(0, 10),
       start_time: times.start_time,
       end_time: times.end_time,
@@ -131,6 +132,13 @@ export async function createBooking(user: AuthUser, input: CreateBookingInput, d
       total_amount: Number(booking.total_amount),
     })
   }
+  await notifyBookingCreated(db, user.id, booking, {
+    start_at: times.start_at,
+    start_time: times.start_time,
+    duration_hours: input.duration_hours,
+    station_name: station.name,
+    station_type: station.type,
+  })
   return booking
 }
 

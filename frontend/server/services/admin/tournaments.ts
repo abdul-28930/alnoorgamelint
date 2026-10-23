@@ -8,6 +8,7 @@ import {
   computeStandings, generateRoundRobin, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
 } from '../../tournaments/engine'
 import { mapRpcError } from '../bookings'
+import { notifyEntrants } from '../tournamentNotifications'
 
 // ---- shared -------------------------------------------------------------------------------------
 
@@ -221,6 +222,7 @@ export async function promoteWaitlist(db: SupabaseClient, tournamentId: string):
   if (error || !data?.length) return 0
   const { error: updateError } = await db.from('tournament_entrants').update({ status: 'registered' }).in('id', data.map((r) => r.id))
   if (updateError) throw fail('Failed to promote from the waitlist', updateError)
+  await notifyEntrants(db, tournamentId, data.map((r) => r.id as string), 'moved_up')
   return data.length
 }
 
@@ -254,6 +256,7 @@ export async function addEntrant(tournamentId: string, input: z.infer<typeof add
     .single()
   if (error?.code === '23505') throw badRequest('That player is already registered')
   if (error) throw fail('Failed to add the entrant', error)
+  if (userId && data?.id) await notifyEntrants(db, tournamentId, [data.id as string], 'registered') // only members have a number
   return data
 }
 
@@ -284,6 +287,11 @@ export async function updateEntrant(
   const { data, error } = await db.from('tournament_entrants').update(changes).eq('id', entrantId).select().maybeSingle()
   if (error) throw fail('Failed to update the entrant', error)
   if (!data) throw notFound('Entrant not found')
+
+  // staff promoted a waiting player by hand
+  if (entrant.status === 'waitlist' && changes.status && PLAYING.includes(changes.status as string)) {
+    await notifyEntrants(db, tournamentId, [entrantId], 'moved_up')
+  }
 
   if (changes.status && TERMINAL.includes(changes.status as string) && !TERMINAL.includes(entrant.status)) {
     if (started) await settleForfeits(db, tournamentId)
@@ -423,6 +431,8 @@ export async function reshuffleBracket(
     }
     throw e
   }
+  // told only now, when their place is certain (a failed reshuffle above puts them back on the waitlist)
+  if (swapIn.length) await notifyEntrants(db, tournamentId, swapIn.map((x) => x.id as string), 'moved_up')
   return {
     reshuffled: true,
     replaced: swapOut.length,
