@@ -16,7 +16,7 @@ describe('admin nav', () => {
   it('links every admin page exactly once', () => {
     const hrefs = ADMIN_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href))
     expect(new Set(hrefs).size).toBe(hrefs.length)
-    for (const page of ['dashboard', 'bookings', 'stations', 'receipts', 'users', 'coupons', 'points', 'tournaments', 'analytics', 'reports', 'settings']) {
+    for (const page of ['dashboard', 'whatsapp', 'bookings', 'stations', 'receipts', 'users', 'coupons', 'points', 'tournaments', 'analytics', 'reports', 'settings']) {
       expect(hrefs.some((h) => h.startsWith(`/admin/${page}`))).toBe(true)
     }
   })
