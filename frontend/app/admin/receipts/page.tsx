@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { bookings, admin } from '@/lib/supabase'
+import { SendReceiptModal } from '@/components/admin/send-receipt-modal'
 
 export default function AdminReceipts() {
   const [receiptBookings, setReceiptBookings] = useState<any[]>([])
+  const [whatsappReceiptId, setWhatsappReceiptId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -108,7 +110,7 @@ export default function AdminReceipts() {
                       <tr key={booking.id} className="border-t border-cp-cyan/20 hover:bg-cp-gray/10">
                         <td className="px-4 py-3 text-white text-sm">{booking.id.slice(0, 8)}...</td>
                         <td className="px-4 py-3 text-white text-sm">
-                          {booking.user_profiles?.username || booking.user_profiles?.full_name || 'Unknown'}
+                          {booking.user_profiles?.username || booking.user_profiles?.full_name || booking.guest_name || 'Unknown'}
                         </td>
                         <td className="px-4 py-3 text-white text-sm">
                           {booking.stations?.name || 'N/A'} ({booking.stations?.type || 'N/A'})
@@ -131,6 +133,12 @@ export default function AdminReceipts() {
                           >
                             View Receipt
                           </button>
+                          <button
+                            onClick={() => setWhatsappReceiptId(booking.id)}
+                            className="ml-2 bg-green-700 text-white px-3 py-1 rounded text-sm hover:bg-green-600 font-medium"
+                          >
+                            Send on WhatsApp
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -141,6 +149,7 @@ export default function AdminReceipts() {
           </div>
         </main>
       </div>
+      {whatsappReceiptId && <SendReceiptModal bookingId={whatsappReceiptId} onClose={() => setWhatsappReceiptId(null)} />}
     </AdminGuard>
   )
 }

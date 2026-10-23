@@ -5,6 +5,7 @@ import { AdminGuard } from '@/components/ui/admin-guard'
 import { bookings, admin } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { WalkinModal } from '@/components/admin/walkin-modal'
+import { SendReceiptModal } from '@/components/admin/send-receipt-modal'
 
 
 // Booking Edit Modal Component
@@ -337,6 +338,7 @@ export default function AdminBookings() {
   const [selectedStations, setSelectedStations] = useState<{[key: string]: string}>({})
   const [openStationMenuId, setOpenStationMenuId] = useState<string | null>(null)
   const [walkin, setWalkin] = useState<{ stationId: string | null } | null>(null)
+  const [whatsappReceiptId, setWhatsappReceiptId] = useState<string | null>(null)
   const [timerUpdates, setTimerUpdates] = useState<{[key: string]: number}>({})
 
   useEffect(() => {
@@ -1303,6 +1305,17 @@ export default function AdminBookings() {
                                           Generate Receipt
                                         </button>
                                       )}
+                                      {(reservation.checked_in_at || reservation.status === 'ENDED') && (
+                                        <button
+                                          onClick={() => {
+                                            setWhatsappReceiptId(reservation.id)
+                                            setOpenMenuId(null)
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-sm text-white hover:bg-cp-cyan hover:text-cp-black"
+                                        >
+                                          Send receipt on WhatsApp
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => {
                                           setDeletingBooking(reservation)
@@ -1488,6 +1501,17 @@ export default function AdminBookings() {
                                         Generate Receipt
                                       </button>
                                     )}
+                                    {(reservation.checked_in_at || reservation.status === 'ENDED') && (
+                                      <button
+                                        onClick={() => {
+                                          setWhatsappReceiptId(reservation.id)
+                                          setOpenMenuId(null)
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-cp-cyan hover:text-cp-black"
+                                      >
+                                        Send receipt on WhatsApp
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => {
                                         setDeletingBooking(reservation)
@@ -1611,6 +1635,7 @@ export default function AdminBookings() {
         )}
 
       </div>
+      {whatsappReceiptId && <SendReceiptModal bookingId={whatsappReceiptId} onClose={() => setWhatsappReceiptId(null)} />}
       {walkin && (
         <WalkinModal
           key={stationsData.length}
