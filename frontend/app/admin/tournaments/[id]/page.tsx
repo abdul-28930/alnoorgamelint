@@ -29,6 +29,8 @@ export default function ManageTournamentPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [tab, setTab] = useState<'entrants' | 'bracket'>('entrants')
+  const [swapIn, setSwapIn] = useState<string | null>(null) // the waitlisted entrant being added to the bracket
+  const [swapOut, setSwapOut] = useState('')
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -357,7 +359,34 @@ export default function ManageTournamentPage() {
                         run(() => api.updateEntrant(id, e.id, { phone: phone.trim() || null, email: email.trim() || null }))
                       }}>Edit contact</button>
                     )}
+                    {e.status === 'waitlist' && started && t.status !== 'completed' && (
+                      <button disabled={busy} className={`${btn} bg-cyan-800`} onClick={() => { setSwapIn(swapIn === e.id ? null : e.id); setSwapOut('') }}>Add to bracket</button>
+                    )}
                     {!started && <button disabled={busy} className={`${btn} text-red-400`} onClick={() => run(() => api.removeEntrant(id, e.id))}>Remove</button>}
+                    {swapIn === e.id && (() => {
+                      const absent = d.entrants.filter((x) => x.no_show && ['registered', 'checked_in'].includes(x.status))
+                      return (
+                        <div className="basis-full rounded border border-cyan-800 bg-gray-800 p-3 text-sm">
+                          {absent.length === 0 ? (
+                            <p className="text-gray-300">Nobody is marked as a no-show. Mark the player who has not come as "no-show" first, then choose them here.</p>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>Put <b>{e.display_name}</b> in the place of</span>
+                              <select className="rounded border border-gray-600 bg-gray-900 px-2 py-1" value={swapOut} onChange={(ev) => setSwapOut(ev.target.value)}>
+                                <option value="">Choose the no-show…</option>
+                                {absent.map((x) => <option key={x.id} value={x.id}>{x.display_name}</option>)}
+                              </select>
+                              <button disabled={busy || !swapOut} className={`${btn} bg-green-600`} onClick={() => {
+                                const out = absent.find((x) => x.id === swapOut)
+                                if (!out || !confirm(`${e.display_name} takes ${out.display_name}'s place in the bracket. ${out.display_name} is withdrawn and ${e.display_name} is told on WhatsApp. Everyone else keeps their match.`)) return
+                                run(async () => { await api.swapWaitlist(id, swapOut, e.id); setSwapIn(null); setNotice(`${e.display_name} is now in the bracket in place of ${out.display_name}.`) })
+                              }}>Confirm</button>
+                              <button className={`${btn} bg-gray-700`} onClick={() => setSwapIn(null)}>Cancel</button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 ))}
                 {d.entrants.length === 0 && <p className="text-gray-400">Nobody has registered yet.</p>}
