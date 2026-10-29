@@ -18,6 +18,9 @@ export const TOURNAMENT_ERRORS: Record<string, [number, string]> = {
   TOURNAMENT_NOT_FOUND: [404, 'Tournament not found'],
   TOURNAMENT_COMPLETED: [400, 'This tournament is finished'],
   ALREADY_STARTED: [400, 'A match has already been played. Undo the results before changing the bracket'],
+  ENTRANT_NOT_REPLACEABLE: [400, 'That player is not in the bracket any more'],
+  NOT_ON_WAITLIST: [400, 'That player is no longer on the waitlist'],
+  NOT_STARTED: [400, 'Generate the bracket first. Until then use Promote'],
   NO_MATCHES: [400, 'There are no matches to save'],
   INVALID_ENTRANT: [400, 'Every entrant must be registered or checked in'],
   MATCH_NOT_FOUND: [404, 'Match not found'],
@@ -503,6 +506,24 @@ export async function startBracket(tournamentId: string, order: string[] | undef
   })
   if (error) throw mapRpcError(error, 'Failed to generate the bracket', TOURNAMENT_ERRORS)
   return getTournamentDetail(tournamentId, db)
+}
+
+export const swapSchema = z.object({ out_entrant_id: uuid, in_entrant_id: uuid })
+
+/**
+ * Staff choose which waitlisted player takes the place of which no-show. Only that one slot changes; every other pairing
+ * stays as drawn. The player coming in is told on WhatsApp.
+ */
+export async function swapWaitlistIntoBracket(tournamentId: string, input: z.infer<typeof swapSchema>, db: SupabaseClient = getSupabase()) {
+  await loadTournament(db, tournamentId)
+  const { error } = await db.rpc('swap_bracket_entrant', { p_tournament_id: tournamentId, p_out: input.out_entrant_id, p_in: input.in_entrant_id })
+  if (error) {
+    const missing = error.code === 'PGRST202' || /could not find the function/i.test(error.message ?? '')
+    if (missing) throw new ApiError(503, 'The database is missing swap_bracket_entrant. Run sql/setup/18_bracket_swap.sql in Supabase, then try again.')
+    throw mapRpcError(error, 'Failed to put the player into the bracket', TOURNAMENT_ERRORS)
+  }
+  await notifyEntrants(db, tournamentId, [input.in_entrant_id], 'moved_up')
+  return getTournamentDetail(tournamentId, db, { contacts: true })
 }
 
 // ---- results ------------------------------------------------------------------------------------
