@@ -8,6 +8,7 @@ import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { StandingsTable } from '@/components/tournaments/standings-table'
 import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
+import { EditDetails } from '@/components/tournaments/edit-details'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
 import { api, STATUS_STYLE, type Entrant, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
@@ -252,6 +253,12 @@ export default function ManageTournamentPage() {
               <ImageSlot id={id} kind="banner" url={t.banner_image} onChange={load} />
               <ImageSlot id={id} kind="poster" url={t.poster_image} onChange={load} />
             </div>
+          </details>
+
+          <details className="mb-6 rounded-lg bg-gray-900 p-4">
+            <summary className="cursor-pointer font-semibold">Edit name, dates and details</summary>
+            <EditDetails key={`${t.name}|${t.starts_at}|${t.registration_closes_at}|${t.max_players}|${t.entry_fee}|${t.prize_pool}|${t.prize_details}|${t.description}|${t.game}|${t.platform}`} t={t} started={started} busy={busy}
+              onSave={(changes) => run(async () => { await api.update(id, changes); setNotice('Tournament details saved.') })} />
           </details>
 
           <details className="mb-6 rounded-lg bg-gray-900 p-4">
