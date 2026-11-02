@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fakeDb, type Call } from './fakeDb'
+import { fakeDb, rpcArgs, type Call } from './fakeDb'
 
 vi.mock('../services/tournamentNotifications', () => ({ notifyEntrants: vi.fn(async () => []), formatStart: () => '' }))
 
 import { notifyEntrants } from '../services/tournamentNotifications'
 import { acceptInvite, registerForTournament, withdrawFromTournament } from '../services/tournaments'
-import { addEntrant, reshuffleBracket, updateEntrant } from '../services/admin/tournaments'
+import { addEntrant, reshuffleBracket, swapSchema, swapWaitlistIntoBracket, updateEntrant } from '../services/admin/tournaments'
 
 const spy = vi.mocked(notifyEntrants)
 const has = (c: Call[], m: string) => c.some((x) => x.method === m)
@@ -90,5 +90,26 @@ describe('reshuffle tells replacements only when their place is certain', () => 
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(reshuffleBracket('t1', db, () => 0.4, { replaceFromWaitlist: true })).rejects.toBeTruthy()
     expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('staff choose which waitlisted player takes a no-show\'s place', () => {
+  const world = (rpc: object = { data: { replaced: 'x' } }) =>
+    fakeDb({ tables: { tournament_overview: { data: { ...T, started_at: 'x', status: 'active' } }, tournament_entrants: { data: [] }, tournament_matches: { data: [] } }, rpcs: { swap_bracket_entrant: rpc } })
+  it('swaps exactly the two chosen players and tells the one coming in', async () => {
+    const w = world()
+    await swapWaitlistIntoBracket('t1', swapSchema.parse({ out_entrant_id: id(1), in_entrant_id: id(2) }), w.db)
+    expect(rpcArgs(w.log, 'swap_bracket_entrant')).toEqual({ p_tournament_id: 't1', p_out: id(1), p_in: id(2) })
+    expect(spy).toHaveBeenCalledWith(w.db, 't1', [id(2)], 'moved_up')
+  })
+  it('explains refusals and sends nothing', async () => {
+    const run = (code: string) => swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_entrant_id: id(2) }, world({ error: { message: code } }).db)
+    await expect(run('ALREADY_STARTED')).rejects.toMatchObject({ status: 400, message: expect.stringContaining('already been played') })
+    await expect(run('NOT_ON_WAITLIST')).rejects.toMatchObject({ status: 400 })
+    await expect(run('ENTRANT_NOT_REPLACEABLE')).rejects.toMatchObject({ status: 400 })
+    expect(spy).not.toHaveBeenCalled()
+  })
+  it('needs two real ids', () => {
+    expect(() => swapSchema.parse({ out_entrant_id: 'x', in_entrant_id: id(2) })).toThrow()
   })
 })

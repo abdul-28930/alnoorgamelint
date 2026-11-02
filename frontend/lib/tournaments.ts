@@ -109,6 +109,8 @@ export const api = {
     return call<{ url: string }>(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'POST', body })
   },
   removeImage: (id: string, kind: ImageKind) => call(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'DELETE' }),
+  swapWaitlist: (id: string, outEntrantId: string, inEntrantId: string) =>
+    call(`${base}/tournaments/${id}/bracket/swap`, { json: { out_entrant_id: outEntrantId, in_entrant_id: inEntrantId } }),
   reshuffle: (id: string, replaceFromWaitlist = true) =>
     call<{ reshuffled: boolean; replaced: number; no_shows: number; present: number }>(`${base}/tournaments/${id}/bracket/reshuffle`, { json: { replace_from_waitlist: replaceFromWaitlist } }),
   notifyPreview: (id: string, audience: string, round?: number) =>
