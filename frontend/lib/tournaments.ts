@@ -19,6 +19,7 @@ export interface TournamentRow {
   entry_fee: number
   prize_pool: number
   description?: string
+  prize_details?: string | null
   banner_image?: string | null
   poster_image?: string | null
   rules?: string | null
@@ -231,3 +232,10 @@ export async function shrinkImage(file: File, maxSide: number): Promise<Blob> {
 }
 
 export const MAX_SIDE: Record<ImageKind, number> = { banner: 1800, poster: 1400 }
+
+/** A stored instant (UTC ISO) as the café's clock, for <input type="datetime-local">: "2026-11-14T11:00". */
+export function toIstInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : new Date(d.getTime() + 330 * 60 * 1000).toISOString().slice(0, 16)
+}
