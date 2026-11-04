@@ -101,6 +101,40 @@ export async function pointsTransactions(limit: number, db: SupabaseClient = get
   return data ?? []
 }
 
+export const pointsAdjustSchema = z.object({
+  user_id: z.guid('Choose a member'),
+  points: z.number().int('Enter a whole number of points').refine((n) => n !== 0, 'Enter how many points to add or remove').refine((n) => Math.abs(n) <= 100000, 'That is too many points at once'),
+  reason: z.string().trim().min(3, 'Write a short reason').max(200),
+})
+
+export const pointsBalanceQuery = z.object({ user_id: z.guid() })
+
+export async function pointsBalance(userId: string, db: SupabaseClient = getSupabase()) {
+  const { data, error } = await db.from('user_profiles').select('username, full_name, points_balance').eq('user_id', userId).maybeSingle()
+  if (error) throw fail('Failed to load the balance', error)
+  if (!data) throw notFound('Member not found')
+  return { username: data.username as string, full_name: data.full_name as string, balance: Number(data.points_balance ?? 0) }
+}
+
+/** Staff add (positive) or remove (negative) points; the change and its reason are logged with the staff member's email. */
+export async function adjustPoints(input: z.infer<typeof pointsAdjustSchema>, staffEmail: string, db: SupabaseClient = getSupabase()) {
+  const { data, error } = await db.rpc('adjust_user_points', { p_user_id: input.user_id, p_delta: input.points, p_reason: input.reason, p_staff: staffEmail })
+  if (error || !data) {
+    const message = error?.message ?? ''
+    const short = /INSUFFICIENT_POINTS:(\d+)/.exec(message)
+    if (short) throw badRequest(`This member only has ${short[1]} points, so ${Math.abs(input.points)} cannot be removed`)
+    if (error?.code === 'PGRST202' || /could not find the function/i.test(message)) {
+      throw new ApiError(503, 'The database is missing adjust_user_points. Run sql/setup/19_points_adjust.sql in Supabase, then try again.')
+    }
+    throw mapRpcError(error, 'Failed to change the points', {
+      USER_NOT_FOUND: [404, 'Member not found'],
+      INVALID_POINTS: [400, 'Enter how many points to add or remove (at most 100000)'],
+      REASON_REQUIRED: [400, 'Write a short reason'],
+    })
+  }
+  return data as { balance: number; previous: number; change: number }
+}
+
 // ---- admin emails ------------------------------------------------------------------------------
 export const adminEmailsSchema = z.array(z.string().trim().toLowerCase().email()).max(50)
 
