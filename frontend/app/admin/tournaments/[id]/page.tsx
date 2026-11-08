@@ -10,6 +10,7 @@ import { SchedulePanel, ScheduleList } from '@/components/tournaments/schedule-p
 import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { EditDetails } from '@/components/tournaments/edit-details'
+import { DaysBar, FinalRanking, SplitPanel } from '@/components/tournaments/days'
 import { ReplaceNoShow } from '@/components/tournaments/replace-panel'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
@@ -244,6 +245,16 @@ export default function ManageTournamentPage() {
             <div className="rounded-lg bg-gray-900 p-3 text-center"><div className="text-2xl font-bold text-purple-400">{t.view_count}</div><div className="text-xs text-gray-400">views</div></div>
           </div>
 
+          {d.days && <DaysBar info={d.days} currentId={id} base="/admin/tournaments" />}
+          {(d.final_ranking?.length ?? 0) > 0 && <div className="mb-6"><FinalRanking rows={d.final_ranking ?? []} /></div>}
+
+          {!started && !d.days && t.team_size === 1 && t.registered_count + t.waitlist_count > 0 && (
+            <details className="mb-6 rounded-lg bg-gray-900 p-4">
+              <summary className="cursor-pointer font-semibold">Split the players into days</summary>
+              <SplitPanel t={t} onDone={load} />
+            </details>
+          )}
+
           {t.status !== 'draft' && (
             <div className="mb-6 rounded-lg bg-gray-900 p-4">
               <div className="mb-2 text-sm text-gray-400">Public page: <a className="text-cyan-400 underline" href={`/tournaments/${id}`} target="_blank" rel="noopener noreferrer">/tournaments/{id.slice(0, 8)}…</a></div>
@@ -307,15 +318,15 @@ export default function ManageTournamentPage() {
             )}
           </div>
 
-          <div className="mb-4 flex gap-2 border-b border-gray-800">
+          {!t.split_days && <div className="mb-4 flex gap-2 border-b border-gray-800">
             {(['entrants', 'bracket'] as const).map((k) => (
               <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 capitalize ${tab === k ? 'border-b-2 border-cyan-400 text-cyan-400' : 'text-gray-400'}`}>
                 {k === 'entrants' ? `Entrants (${d.entrants.length})` : t.tournament_type === 'league' ? 'Matches & table' : 'Bracket'}
               </button>
             ))}
-          </div>
+          </div>}
 
-          {tab === 'entrants' && (
+          {!t.split_days && tab === 'entrants' && (
             <div>
               {!started && (
                 <form
@@ -388,6 +399,12 @@ export default function ManageTournamentPage() {
                         run(() => api.updateEntrant(id, e.id, { phone: phone.trim() || null, email: email.trim() || null }))
                       }}>Edit contact</button>
                     )}
+                    {!started && d.days?.parent && !['withdrawn', 'disqualified'].includes(e.status) && d.days.days.filter((x) => x.id !== id).map((x) => (
+                      <button key={x.id} disabled={busy} className={`${btn} bg-indigo-800`} title="Moves the player to that day; onto its waitlist when that day is full"
+                        onClick={() => { if (confirm(`Move ${e.display_name} to Day ${x.day_no}?`)) run(async () => { const r = await api.moveToDay(id, e.id, x.id); setNotice(`${e.display_name} is now ${r.status === 'waitlist' ? 'on the waitlist of' : 'registered for'} Day ${x.day_no}.`) }) }}>
+                        Move to Day {x.day_no}
+                      </button>
+                    ))}
                     {started && e.no_show && ['registered', 'checked_in'].includes(e.status) && t.status !== 'completed' && (
                       <button disabled={busy} className={`${btn} bg-cyan-800`} onClick={() => setReplaceFor(replaceFor === e.id ? null : e.id)}>Replace…</button>
                     )}
@@ -439,7 +456,7 @@ export default function ManageTournamentPage() {
             </div>
           )}
 
-          {tab === 'bracket' && (
+          {!t.split_days && tab === 'bracket' && (
             started ? (
               t.tournament_type === 'league' ? (
                 <div className="space-y-8">

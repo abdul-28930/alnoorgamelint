@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { NavBar } from '@/components/ui/navbar'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
+import { DaysBar, FinalRanking } from '@/components/tournaments/days'
 import { GoalsTable, StandingsTable } from '@/components/tournaments/standings-table'
 import { ScheduleList } from '@/components/tournaments/schedule-panel'
 import { Markdown } from '@/components/ui/markdown'
@@ -104,7 +105,11 @@ export default function TournamentPage() {
         {error && <div className="mb-4 rounded border border-red-600 bg-red-900/40 p-3 text-red-300">{error}</div>}
         {notice && <div className="mb-4 rounded border border-green-600 bg-green-900/30 p-3 text-green-300">{notice}</div>}
 
-        {/* sign-up */}
+        {d.days && <DaysBar info={d.days} currentId={id} base="/tournaments" />}
+        {(d.final_ranking?.length ?? 0) > 0 && <div className="mb-6"><FinalRanking rows={d.final_ranking ?? []} /></div>}
+
+        {/* sign-up (each day of a tournament played over days has its own) */}
+        {!t.split_days && (
         <section className="mb-8 rounded-lg border border-cp-cyan/20 bg-cp-gray/20 p-5">
           {!d.me || needLogin ? (
             canRegister ? (
@@ -164,6 +169,7 @@ export default function TournamentPage() {
             </form>
           ) : <p>Registration is closed.</p>}
         </section>
+        )}
 
         {(t.description || t.prize_details || t.rules || t.starts_at) && (
           <section className="mb-8 space-y-3 text-gray-300">
@@ -180,7 +186,7 @@ export default function TournamentPage() {
           </section>
         )}
 
-        {started ? (
+        {t.split_days ? null : started ? (
           <section>
             <h2 className="mb-4 text-2xl font-bold text-cp-yellow">{t.tournament_type === 'league' ? 'Table & fixtures' : 'Bracket'}</h2>
             {t.tournament_type === 'league' ? (

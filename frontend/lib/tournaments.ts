@@ -29,7 +29,15 @@ export interface TournamentRow {
   champion_entrant_id?: string | null
   starts_at?: string | null
   registration_closes_at?: string | null
+  parent_id?: string | null
+  day_no?: number | null
+  split_days?: number | null
 }
+
+export interface RankedPlayer { place: number; entrant_id: string; display_name: string | null; reason: string }
+
+export interface DayInfo { id: string; name: string; day_no: number | null; status: string; max_players: number; registered_count: number; waitlist_count: number; starts_at: string | null; champion_name: string | null }
+export interface DaysInfo { parent: { id: string; name: string } | null; days: DayInfo[] }
 
 export interface Entrant {
   id: string
@@ -95,6 +103,8 @@ export interface TournamentDetail {
   rounds: number
   standings: StandingRow[]
   goals?: GoalsRow[]
+  final_ranking?: RankedPlayer[]
+  days?: DaysInfo | null
   champion_name: string | null
 }
 
@@ -139,6 +149,12 @@ export const api = {
   /** Puts a waitlisted entrant (entrantId) or a member who is not entered yet (userId) in the place of a no-show. */
   swapWaitlist: (id: string, outEntrantId: string, who: { entrantId?: string; userId?: string }) =>
     call(`${base}/tournaments/${id}/bracket/swap`, { json: { out_entrant_id: outEntrantId, ...(who.entrantId ? { in_entrant_id: who.entrantId } : { in_user_id: who.userId }) } }),
+  splitPreview: (id: string, method: string, capacity?: number) =>
+    call<{ capacity: number; days: { day: number; name: string; players: number; waitlist: number }[] }>(`${base}/tournaments/${id}/split`, { json: { method, preview: true, ...(capacity ? { capacity } : {}) } }),
+  split: (id: string, method: string, capacity?: number) =>
+    call<{ days: { day: number; id: string | null; name: string; players: number; waitlist: number }[] }>(`${base}/tournaments/${id}/split`, { json: { method, ...(capacity ? { capacity } : {}) } }),
+  moveToDay: (id: string, entrantId: string, toTournamentId: string) =>
+    call<{ status: string }>(`${base}/tournaments/${id}/entrants/${entrantId}/move`, { json: { to_tournament_id: toTournamentId } }),
   scheduleSettings: (id: string) => call<{ settings: ScheduleSettings | null }>(`${base}/tournaments/${id}/schedule`, { method: 'GET' }),
   planSchedule: (id: string, settings: ScheduleSettings, replanFromNow: boolean) =>
     call<{ scheduled: number; unscheduled: number; first: string | null; last: string | null }>(`${base}/tournaments/${id}/schedule`, { json: { settings, replan_from_now: replanFromNow } }),
@@ -197,6 +213,8 @@ export interface PublicDetail {
   rounds: number
   standings: StandingRow[]
   goals?: GoalsRow[]
+  final_ranking?: RankedPlayer[]
+  days?: DaysInfo | null
   champion_name: string | null
   waitlist: { position: number; id: string; display_name: string }[]
   my_waitlist_position: number | null

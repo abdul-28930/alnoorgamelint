@@ -395,3 +395,86 @@ export function goalsTable(entrants: { id: string; display_name?: string | null 
   list.forEach((r, i) => { r.rank = i + 1 })
   return list
 }
+
+// ---- splitting a tournament over several days ---------------------------------------------------
+
+export type SplitMethod = 'first' | 'alternate' | 'random'
+export interface SplitDay { active: string[]; waitlist: string[] }
+
+/**
+ * Divides players between days. Registered players fill each day up to `capacity`; players who would not fit, and everyone
+ * already waiting, go on a day's own waitlist.
+ *   first      the earliest registrations play on day 1, the next on day 2, ...
+ *   alternate  1st registrant to day 1, 2nd to day 2, 3rd to day 1, ...
+ *   random     a random draw, then as "first"
+ * Waiting players are shared between the days in turn, each keeping their order.
+ */
+export function planSplit(
+  entrants: { id: string; status: string; registered_at?: string | null }[],
+  opts: { days: number; capacity: number; method: SplitMethod },
+  rng: () => number = Math.random,
+): SplitDay[] {
+  const byTime = (a: { registered_at?: string | null }, b: { registered_at?: string | null }) => String(a.registered_at ?? '').localeCompare(String(b.registered_at ?? ''))
+  const playing = entrants.filter((e) => e.status === 'registered' || e.status === 'checked_in').sort(byTime).map((e) => e.id)
+  const waiting = entrants.filter((e) => e.status === 'waitlist').sort(byTime).map((e) => e.id)
+  const days: SplitDay[] = Array.from({ length: opts.days }, () => ({ active: [], waitlist: [] }))
+
+  const order = opts.method === 'random' ? shuffle(playing, rng) : playing
+  const overflow: string[] = []
+  if (opts.method === 'alternate') {
+    order.forEach((id, i) => {
+      const d = days[i % opts.days]
+      if (d.active.length < opts.capacity) d.active.push(id)
+      else overflow.push(id)
+    })
+  } else {
+    order.forEach((id, i) => {
+      const d = days[Math.floor(i / opts.capacity)]
+      if (d) d.active.push(id)
+      else overflow.push(id)
+    })
+  }
+  // overflow registrants registered before everyone waiting, so they wait first; spread them evenly
+  overflow.concat(waiting).forEach((id, i) => days[i % opts.days].waitlist.push(id))
+  return days
+}
+
+// ---- final ranking (top 5) -----------------------------------------------------------------------
+
+export interface RankedPlayer { place: number; entrant_id: string; display_name: string | null; reason: string }
+
+interface RankMatch extends StandingMatch { bracket?: string; round?: number }
+
+/**
+ * 1 winner of the final, 2 loser of the final, 3 winner of the third-place match, 4 its loser, and 5 the best of everyone
+ * else in the goals table. Only places that are already known are returned.
+ */
+export function finalRanking(entrants: { id: string; display_name?: string | null }[], matches: RankMatch[]): RankedPlayer[] {
+  const name = new Map(entrants.map((e) => [e.id, e.display_name ?? null]))
+  const main = matches.filter((m) => (m.bracket ?? 'main') !== 'third')
+  const lastRound = main.reduce((r, m) => Math.max(r, m.round ?? 0), 0)
+  const final = main.find((m) => m.round === lastRound)
+  const third = matches.find((m) => m.bracket === 'third')
+  const out: RankedPlayer[] = []
+  const used = new Set<string>()
+  const add = (place: number, id: string | null | undefined, reason: string) => {
+    if (!id || used.has(id)) return
+    used.add(id)
+    out.push({ place, entrant_id: id, display_name: name.get(id) ?? null, reason })
+  }
+  const loserOf = (m: RankMatch) => (m.winner_id === m.entrant1_id ? m.entrant2_id : m.winner_id === m.entrant2_id ? m.entrant1_id : null)
+
+  if (final && final.status === 'completed' && final.winner_id) {
+    add(1, final.winner_id, 'Won the final')
+    add(2, loserOf(final), 'Lost the final')
+  }
+  if (third && third.status === 'completed' && third.winner_id) {
+    add(3, third.winner_id, 'Won the third-place match')
+    add(4, loserOf(third), 'Lost the third-place match')
+  }
+  if (out.length === 4) {
+    const next = goalsTable(entrants, matches).find((r) => !used.has(r.entrant_id))
+    if (next) add(5, next.entrant_id, 'Best of the rest by goals')
+  }
+  return out.sort((a, b) => a.place - b.place)
+}
