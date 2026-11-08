@@ -105,7 +105,7 @@ export default function TournamentPage() {
         {error && <div className="mb-4 rounded border border-red-600 bg-red-900/40 p-3 text-red-300">{error}</div>}
         {notice && <div className="mb-4 rounded border border-green-600 bg-green-900/30 p-3 text-green-300">{notice}</div>}
 
-        {d.days && <DaysBar info={d.days} currentId={id} base="/tournaments" />}
+        {d.days && <DaysBar info={d.days} currentId={id} base="/tournaments" publicView />}
         {(d.final_ranking?.length ?? 0) > 0 && <div className="mb-6"><FinalRanking rows={d.final_ranking ?? []} /></div>}
 
         {/* sign-up (each day of a tournament played over days has its own) */}
