@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Match } from '@/lib/tournaments'
+import { slotParts, type Match } from '@/lib/tournaments'
 
 interface Props {
   matches: Match[]
@@ -30,6 +30,9 @@ export function MatchCard({ m, actions, side }: { m: Match; actions?: Props['act
         <span>{m.bracket === 'third' ? 'Third place' : `Match ${m.position}`}</span>
         <span>{m.status === 'live' ? <b className="text-red-400">● LIVE</b> : m.status === 'bye' ? 'Bye' : m.walkover ? 'Walkover' : m.status}</span>
       </div>
+      {m.scheduled_at && m.status !== 'bye' && (
+        <div className="bg-black/20 px-3 py-0.5 text-[11px] text-yellow-300">{slotParts(m.scheduled_at)?.day} · {slotParts(m.scheduled_at)?.time}{m.console_no ? ` · PS5 ${m.console_no}` : ''}</div>
+      )}
       <Side name={m.entrant1_name} score={m.score1} won={done && !!m.winner_id && m.winner_id === m.entrant1_id} lost={done && !!m.winner_id && m.winner_id !== m.entrant1_id} extra={m.entrant1_id ? side?.(m.entrant1_id, 1, m) : null} />
       <div className="border-t border-gray-800" />
       <Side name={m.status === 'bye' ? 'BYE' : m.entrant2_name} score={m.score2} won={done && !!m.winner_id && m.winner_id === m.entrant2_id} lost={done && !!m.winner_id && m.winner_id !== m.entrant2_id} extra={m.status !== 'bye' && m.entrant2_id ? side?.(m.entrant2_id, 2, m) : null} />

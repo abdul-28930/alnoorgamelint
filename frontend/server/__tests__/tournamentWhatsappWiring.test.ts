@@ -109,6 +109,39 @@ describe('staff choose which waitlisted player takes a no-show\'s place', () => 
     await expect(run('ENTRANT_NOT_REPLACEABLE')).rejects.toMatchObject({ status: 400 })
     expect(spy).not.toHaveBeenCalled()
   })
+  it('brings in a member who is not entered yet: enters them as waiting, swaps them in, tells them', async () => {
+    const w = fakeDb({
+      tables: {
+        tournament_overview: { data: { ...T, started_at: 'x', status: 'active' } },
+        user_profiles: { data: { user_id: id(7), username: 'neo', full_name: 'Neo' } },
+        tournament_entrants: (c: Call[]) => (has(c, 'insert') ? { data: { id: id(9) } } : { data: [] }),
+        tournament_matches: { data: [] },
+      },
+      rpcs: { swap_bracket_entrant: { data: {} } },
+    })
+    await swapWaitlistIntoBracket('t1', swapSchema.parse({ out_entrant_id: id(1), in_user_id: id(7) }), w.db)
+    const ins = w.log.find((e) => e.table === 'tournament_entrants' && has(e.calls, 'insert'))!
+    expect(argOf(ins.calls, 'insert')).toMatchObject({ user_id: id(7), status: 'waitlist', display_name: 'Neo' })
+    expect(rpcArgs(w.log, 'swap_bracket_entrant')).toEqual({ p_tournament_id: 't1', p_out: id(1), p_in: id(9) })
+    expect(spy).toHaveBeenCalledWith(w.db, 't1', [id(9)], 'moved_up')
+  })
+  it('removes that new entry again when the swap is refused', async () => {
+    const w = fakeDb({
+      tables: {
+        tournament_overview: { data: { ...T, started_at: 'x', status: 'active' } },
+        user_profiles: { data: { user_id: id(7), username: 'neo', full_name: 'Neo' } },
+        tournament_entrants: (c: Call[]) => (has(c, 'insert') ? { data: { id: id(9) } } : {}),
+      },
+      rpcs: { swap_bracket_entrant: { error: { message: 'ALREADY_STARTED' } } },
+    })
+    await expect(swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_user_id: id(7) }, w.db)).rejects.toMatchObject({ status: 400 })
+    expect(w.log.some((e) => e.table === 'tournament_entrants' && has(e.calls, 'delete'))).toBe(true)
+    expect(spy).not.toHaveBeenCalled()
+  })
+  it('needs exactly one player to bring in', () => {
+    expect(() => swapSchema.parse({ out_entrant_id: id(1) })).toThrow()
+    expect(() => swapSchema.parse({ out_entrant_id: id(1), in_entrant_id: id(2), in_user_id: id(3) })).toThrow()
+  })
   it('needs two real ids', () => {
     expect(() => swapSchema.parse({ out_entrant_id: 'x', in_entrant_id: id(2) })).toThrow()
   })

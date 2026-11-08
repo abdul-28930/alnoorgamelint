@@ -368,3 +368,30 @@ export function computeStandings(entrantIds: string[], matches: StandingMatch[])
   sorted.forEach((r, i) => { r.rank = i + 1 })
   return sorted
 }
+
+// ---- goals table (knockout) -----------------------------------------------------------------------
+
+export interface GoalsRow { entrant_id: string; display_name: string | null; rank: number; played: number; won: number; lost: number; goals_for: number; goals_against: number; diff: number }
+
+/**
+ * "Standings" for a knockout: everyone who has played, ranked by goal difference, then goals scored, then wins. Only matches
+ * with both scores entered count (a walkover or a hand-picked winner has no goals to add up).
+ */
+export function goalsTable(entrants: { id: string; display_name?: string | null }[], matches: StandingMatch[]): GoalsRow[] {
+  const rows = new Map<string, GoalsRow>(entrants.map((e) => [e.id, { entrant_id: e.id, display_name: e.display_name ?? null, rank: 0, played: 0, won: 0, lost: 0, goals_for: 0, goals_against: 0, diff: 0 }]))
+  for (const m of matches) {
+    if (m.status !== 'completed' || !m.entrant1_id || !m.entrant2_id || m.score1 == null || m.score2 == null) continue
+    const a = rows.get(m.entrant1_id)
+    const b = rows.get(m.entrant2_id)
+    if (!a || !b) continue
+    a.played++; b.played++
+    a.goals_for += m.score1; a.goals_against += m.score2
+    b.goals_for += m.score2; b.goals_against += m.score1
+    if (m.winner_id === a.entrant_id) { a.won++; b.lost++ } else if (m.winner_id === b.entrant_id) { b.won++; a.lost++ }
+  }
+  const list = Array.from(rows.values()).filter((r) => r.played > 0)
+  list.forEach((r) => { r.diff = r.goals_for - r.goals_against })
+  list.sort((x, y) => y.diff - x.diff || y.goals_for - x.goals_for || y.won - x.won || String(x.display_name ?? '').localeCompare(String(y.display_name ?? '')))
+  list.forEach((r, i) => { r.rank = i + 1 })
+  return list
+}

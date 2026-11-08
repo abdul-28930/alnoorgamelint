@@ -6,7 +6,7 @@ import { getSupabase } from '../../supabase'
 import { normalizePhone } from '../../whatsapp/client'
 import { fromIstString } from '../../time'
 import {
-  computeStandings, generateRoundRobin, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
+  computeStandings, generateRoundRobin, goalsTable, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
 } from '../../tournaments/engine'
 import { mapRpcError } from '../bookings'
 import { buildEntrantsPdf } from '../../entrantsPdf'
@@ -517,21 +517,42 @@ export async function startBracket(tournamentId: string, order: string[] | undef
   return getTournamentDetail(tournamentId, db)
 }
 
-export const swapSchema = z.object({ out_entrant_id: uuid, in_entrant_id: uuid })
+export const swapSchema = z
+  .object({ out_entrant_id: uuid, in_entrant_id: uuid.optional(), in_user_id: uuid.optional() })
+  .refine((v) => !!v.in_entrant_id !== !!v.in_user_id, 'Choose one player to bring in')
 
 /**
  * Staff choose which waitlisted player takes the place of which no-show. Only that one slot changes; every other pairing
  * stays as drawn. The player coming in is told on WhatsApp.
  */
 export async function swapWaitlistIntoBracket(tournamentId: string, input: z.infer<typeof swapSchema>, db: SupabaseClient = getSupabase()) {
-  await loadTournament(db, tournamentId)
-  const { error } = await db.rpc('swap_bracket_entrant', { p_tournament_id: tournamentId, p_out: input.out_entrant_id, p_in: input.in_entrant_id })
+  const t = await loadTournament(db, tournamentId)
+
+  // A member who is not in this tournament yet is entered first (as waiting) so the swap can take them in. Undone if the swap fails.
+  let inId = input.in_entrant_id as string | undefined
+  let created = false
+  if (!inId) {
+    const { data: profile } = await db.from('user_profiles').select('user_id, username, full_name').eq('user_id', input.in_user_id!).maybeSingle()
+    if (!profile) throw notFound('Member not found')
+    const { data: row, error: insertError } = await db
+      .from('tournament_entrants')
+      .insert({ tournament_id: tournamentId, user_id: profile.user_id, display_name: profile.full_name || profile.username, status: 'waitlist', payment_status: Number(t.entry_fee) > 0 ? 'PENDING' : 'NOT_REQUIRED' })
+      .select('id')
+      .single()
+    if (insertError?.code === '23505') throw badRequest('That member is already entered in this tournament. Pick them from the list of entrants instead')
+    if (insertError) throw entrantWriteError('Failed to enter the member', insertError)
+    inId = row.id as string
+    created = true
+  }
+
+  const { error } = await db.rpc('swap_bracket_entrant', { p_tournament_id: tournamentId, p_out: input.out_entrant_id, p_in: inId })
+  if (error && created) await db.from('tournament_entrants').delete().eq('id', inId!)
   if (error) {
     const missing = error.code === 'PGRST202' || /could not find the function/i.test(error.message ?? '')
     if (missing) throw new ApiError(503, 'The database is missing swap_bracket_entrant. Run sql/setup/18_bracket_swap.sql in Supabase, then try again.')
     throw mapRpcError(error, 'Failed to put the player into the bracket', TOURNAMENT_ERRORS)
   }
-  await notifyEntrants(db, tournamentId, [input.in_entrant_id], 'moved_up')
+  await notifyEntrants(db, tournamentId, [inId!], 'moved_up')
   return getTournamentDetail(tournamentId, db, { contacts: true })
 }
 
@@ -721,6 +742,7 @@ export async function getTournamentDetail(tournamentId: string, db: SupabaseClie
     matches: described,
     rounds,
     standings,
+    goals: t.tournament_type === 'knockout' ? goalsTable(entrants.map((e) => ({ id: e.id as string, display_name: e.display_name as string })), matches as never[]) : [],
     champion_name: t.champion_entrant_id ? names.get(t.champion_entrant_id) ?? null : null,
   }
 }
