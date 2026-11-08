@@ -26,7 +26,7 @@ export function FinalRanking({ rows, title = 'Final standings' }: { rows: Ranked
 }
 
 /** The days of a tournament played over several days, with their counts and winners. `base` is '/admin/tournaments' or '/tournaments'. */
-export function DaysBar({ info, currentId, base }: { info: DaysInfo; currentId: string; base: string }) {
+export function DaysBar({ info, currentId, base, publicView = false }: { info: DaysInfo; currentId: string; base: string; publicView?: boolean }) {
   return (
     <div className="mb-6 rounded-lg bg-gray-900 p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-gray-300">
@@ -43,7 +43,10 @@ export function DaysBar({ info, currentId, base }: { info: DaysInfo; currentId: 
               </div>
               <div className="mt-1 text-sm text-gray-300">{d.registered_count}/{d.max_players} players{d.waitlist_count ? ` · ${d.waitlist_count} waiting` : ''}</div>
               {d.champion_name && <div className="mt-1 text-sm text-yellow-300">🏆 Winner: {d.champion_name}</div>}
-              {d.id !== currentId && <Link className="mt-2 inline-block rounded bg-cyan-700 px-3 py-1 text-sm text-white" href={`${base}/${d.id}`}>Open day {d.day_no}</Link>}
+              {d.id !== currentId && (publicView && d.status === 'draft'
+                ? <div className="mt-2 text-sm text-gray-400">Not open yet</div>
+                : <Link className="mt-2 inline-block rounded bg-cyan-700 px-3 py-1 text-sm text-white" href={`${base}/${d.id}`}>Open day {d.day_no}</Link>)}
+              {!publicView && d.status === 'draft' && <div className="mt-1 text-xs text-yellow-300">Draft: players cannot see this day until you open it.</div>}
             </div>
           )
         })}
