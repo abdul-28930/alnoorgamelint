@@ -108,6 +108,7 @@ export async function getPublicTournament(id: string, userId: string | null, db:
     matches: d.matches,
     rounds: d.rounds,
     standings: d.standings,
+    goals: d.goals,
     champion_name: d.champion_name,
     me,
     my_waitlist_position: myWait >= 0 ? myWait + 1 : null,

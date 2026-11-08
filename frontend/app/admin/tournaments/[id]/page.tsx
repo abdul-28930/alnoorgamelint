@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
-import { StandingsTable } from '@/components/tournaments/standings-table'
+import { GoalsTable, StandingsTable } from '@/components/tournaments/standings-table'
+import { SchedulePanel, ScheduleList } from '@/components/tournaments/schedule-panel'
 import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { EditDetails } from '@/components/tournaments/edit-details'
+import { ReplaceNoShow } from '@/components/tournaments/replace-panel'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
 import { api, STATUS_STYLE, type Entrant, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
@@ -32,6 +34,7 @@ export default function ManageTournamentPage() {
   const [tab, setTab] = useState<'entrants' | 'bracket'>('entrants')
   const [swapIn, setSwapIn] = useState<string | null>(null) // the waitlisted entrant being added to the bracket
   const [swapOut, setSwapOut] = useState('')
+  const [replaceFor, setReplaceFor] = useState<string | null>(null) // the no-show being replaced
   const [pdfList, setPdfList] = useState<'registered' | 'waitlist' | 'active' | 'all'>('active')
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
@@ -262,6 +265,14 @@ export default function ManageTournamentPage() {
               onSave={(changes) => run(async () => { await api.update(id, changes); setNotice('Tournament details saved.') })} />
           </details>
 
+          {started && (
+            <details className="mb-6 rounded-lg bg-gray-900 p-4" open={d.matches.some((m) => m.scheduled_at)}>
+              <summary className="cursor-pointer font-semibold">Match schedule (times and consoles)</summary>
+              <SchedulePanel t={t} matches={d.matches} onChanged={load} />
+              {d.matches.some((m) => m.scheduled_at) && <div className="mt-6"><ScheduleList matches={d.matches} /></div>}
+            </details>
+          )}
+
           <details className="mb-6 rounded-lg bg-gray-900 p-4">
             <summary className="cursor-pointer font-semibold">Send WhatsApp notification</summary>
             <div className="mt-4"><NotifyPanel id={id} tournamentName={t.name} matches={d.matches} /></div>
@@ -377,10 +388,20 @@ export default function ManageTournamentPage() {
                         run(() => api.updateEntrant(id, e.id, { phone: phone.trim() || null, email: email.trim() || null }))
                       }}>Edit contact</button>
                     )}
+                    {started && e.no_show && ['registered', 'checked_in'].includes(e.status) && t.status !== 'completed' && (
+                      <button disabled={busy} className={`${btn} bg-cyan-800`} onClick={() => setReplaceFor(replaceFor === e.id ? null : e.id)}>Replace…</button>
+                    )}
                     {e.status === 'waitlist' && started && t.status !== 'completed' && (
                       <button disabled={busy} className={`${btn} bg-cyan-800`} onClick={() => { setSwapIn(swapIn === e.id ? null : e.id); setSwapOut('') }}>Add to bracket</button>
                     )}
                     {!started && <button disabled={busy} className={`${btn} text-red-400`} onClick={() => run(() => api.removeEntrant(id, e.id))}>Remove</button>}
+                    {replaceFor === e.id && (
+                      <ReplaceNoShow out={e} busy={busy} waitlist={d.entrants.filter((x) => x.status === 'waitlist')} onClose={() => setReplaceFor(null)}
+                        onConfirm={(who, label) => {
+                          if (!confirm(`${label} takes ${e.display_name}'s place in the bracket. ${e.display_name} is withdrawn and ${label} is told on WhatsApp. Everyone else keeps their match.`)) return
+                          run(async () => { await api.swapWaitlist(id, e.id, who); setReplaceFor(null); setNotice(`${label} is now in the bracket in place of ${e.display_name}.`) })
+                        }} />
+                    )}
                     {swapIn === e.id && (() => {
                       const absent = d.entrants.filter((x) => x.no_show && ['registered', 'checked_in'].includes(x.status))
                       return (
@@ -397,7 +418,7 @@ export default function ManageTournamentPage() {
                               <button disabled={busy || !swapOut} className={`${btn} bg-green-600`} onClick={() => {
                                 const out = absent.find((x) => x.id === swapOut)
                                 if (!out || !confirm(`${e.display_name} takes ${out.display_name}'s place in the bracket. ${out.display_name} is withdrawn and ${e.display_name} is told on WhatsApp. Everyone else keeps their match.`)) return
-                                run(async () => { await api.swapWaitlist(id, swapOut, e.id); setSwapIn(null); setNotice(`${e.display_name} is now in the bracket in place of ${out.display_name}.`) })
+                                run(async () => { await api.swapWaitlist(id, swapOut, { entrantId: e.id }); setSwapIn(null); setNotice(`${e.display_name} is now in the bracket in place of ${out.display_name}.`) })
                               }}>Confirm</button>
                               <button className={`${btn} bg-gray-700`} onClick={() => setSwapIn(null)}>Cancel</button>
                             </div>
@@ -434,6 +455,10 @@ export default function ManageTournamentPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
+                  <div className="rounded-lg bg-gray-900 p-4">
+                    <h3 className="mb-2 font-semibold text-cyan-400">Standings (by goals)</h3>
+                    <GoalsTable rows={d.goals ?? []} />
+                  </div>
                   <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-900 p-3">
                     <div className="flex overflow-hidden rounded">
                       {(['bracket', 'list'] as const).map((v) => (

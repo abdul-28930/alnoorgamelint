@@ -62,6 +62,18 @@ export interface Match {
   winner_name: string | null
   walkover?: boolean
   best_of?: number
+  scheduled_at?: string | null
+  console_no?: number | null
+}
+
+export interface GoalsRow { entrant_id: string; display_name: string | null; rank: number; played: number; won: number; lost: number; goals_for: number; goals_against: number; diff: number }
+
+export interface ScheduleSettings {
+  consoles: number
+  match_minutes: number
+  buffer_minutes: number
+  days: { date: string; start: string; end: string }[]
+  breaks: { date?: string; start: string; end: string; label?: string }[]
 }
 
 export interface StandingRow {
@@ -82,6 +94,7 @@ export interface TournamentDetail {
   matches: Match[]
   rounds: number
   standings: StandingRow[]
+  goals?: GoalsRow[]
   champion_name: string | null
 }
 
@@ -123,8 +136,12 @@ export const api = {
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 10000)
   },
-  swapWaitlist: (id: string, outEntrantId: string, inEntrantId: string) =>
-    call(`${base}/tournaments/${id}/bracket/swap`, { json: { out_entrant_id: outEntrantId, in_entrant_id: inEntrantId } }),
+  /** Puts a waitlisted entrant (entrantId) or a member who is not entered yet (userId) in the place of a no-show. */
+  swapWaitlist: (id: string, outEntrantId: string, who: { entrantId?: string; userId?: string }) =>
+    call(`${base}/tournaments/${id}/bracket/swap`, { json: { out_entrant_id: outEntrantId, ...(who.entrantId ? { in_entrant_id: who.entrantId } : { in_user_id: who.userId }) } }),
+  scheduleSettings: (id: string) => call<{ settings: ScheduleSettings | null }>(`${base}/tournaments/${id}/schedule`, { method: 'GET' }),
+  planSchedule: (id: string, settings: ScheduleSettings, replanFromNow: boolean) =>
+    call<{ scheduled: number; unscheduled: number; first: string | null; last: string | null }>(`${base}/tournaments/${id}/schedule`, { json: { settings, replan_from_now: replanFromNow } }),
   reshuffle: (id: string, replaceFromWaitlist = true) =>
     call<{ reshuffled: boolean; replaced: number; no_shows: number; present: number }>(`${base}/tournaments/${id}/bracket/reshuffle`, { json: { replace_from_waitlist: replaceFromWaitlist } }),
   notifyPreview: (id: string, audience: string, round?: number) =>
@@ -179,6 +196,7 @@ export interface PublicDetail {
   matches: Match[]
   rounds: number
   standings: StandingRow[]
+  goals?: GoalsRow[]
   champion_name: string | null
   waitlist: { position: number; id: string; display_name: string }[]
   my_waitlist_position: number | null
@@ -253,4 +271,22 @@ export function toIstInput(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : new Date(d.getTime() + 330 * 60 * 1000).toISOString().slice(0, 16)
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** A kick-off time on the café's clock: { day: 'Sat 14 Nov', time: '11:04 AM', key: '2026-11-14' } */
+export function slotParts(iso: string | null | undefined): { day: string; time: string; key: string } | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const ist = new Date(d.getTime() + 330 * 60 * 1000)
+  const h = ist.getUTCHours()
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return {
+    day: `${DAYS[ist.getUTCDay()]} ${ist.getUTCDate()} ${MONTHS[ist.getUTCMonth()]}`,
+    time: `${h12}:${String(ist.getUTCMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`,
+    key: ist.toISOString().slice(0, 10),
+  }
 }

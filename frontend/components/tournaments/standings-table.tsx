@@ -1,4 +1,4 @@
-import type { StandingRow } from '@/lib/tournaments'
+import type { GoalsRow, StandingRow } from '@/lib/tournaments'
 
 export function StandingsTable({ rows }: { rows: StandingRow[] }) {
   if (!rows.length) return <p className="text-gray-400">No table yet.</p>
@@ -19,6 +19,34 @@ export function StandingsTable({ rows }: { rows: StandingRow[] }) {
               <td className="px-3 py-2">{r.lost}</td>
               <td className="px-3 py-2">{r.score_for - r.score_against}</td>
               <td className="px-3 py-2 font-bold text-cyan-400">{r.points}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Knockout "standings": everyone who has played, by goal difference then goals scored. Updates as scores are entered. */
+export function GoalsTable({ rows }: { rows: GoalsRow[] }) {
+  if (!rows.length) return <p className="text-gray-400">The table fills in as results are entered.</p>
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-left text-gray-400">
+          <tr>{['#', 'Player', 'P', 'W', 'L', 'GF', 'GA', 'GD'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.entrant_id} className="border-t border-gray-800">
+              <td className="px-3 py-2">{r.rank}</td>
+              <td className="px-3 py-2 font-medium">{r.display_name ?? '—'}</td>
+              <td className="px-3 py-2">{r.played}</td>
+              <td className="px-3 py-2">{r.won}</td>
+              <td className="px-3 py-2">{r.lost}</td>
+              <td className="px-3 py-2">{r.goals_for}</td>
+              <td className="px-3 py-2">{r.goals_against}</td>
+              <td className="px-3 py-2 font-bold text-cyan-400">{r.diff > 0 ? `+${r.diff}` : r.diff}</td>
             </tr>
           ))}
         </tbody>

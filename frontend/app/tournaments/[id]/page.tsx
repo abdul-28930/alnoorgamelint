@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { NavBar } from '@/components/ui/navbar'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
-import { StandingsTable } from '@/components/tournaments/standings-table'
+import { GoalsTable, StandingsTable } from '@/components/tournaments/standings-table'
+import { ScheduleList } from '@/components/tournaments/schedule-panel'
 import { Markdown } from '@/components/ui/markdown'
 import { ShareButton } from '@/components/tournaments/share-button'
 import { publicApi, visitorId, type PublicDetail } from '@/lib/tournaments'
@@ -192,7 +193,24 @@ export default function TournamentPage() {
                   </div>
                 ))}
               </div>
-            ) : <BracketView matches={d.matches} />}
+            ) : (
+              <div className="space-y-8">
+                <BracketView matches={d.matches} />
+                {d.matches.some((m) => m.scheduled_at) && (
+                  <div>
+                    <h2 className="mb-4 text-2xl font-bold text-cp-yellow">Match schedule</h2>
+                    <ScheduleList matches={d.matches} />
+                  </div>
+                )}
+                {(d.goals?.length ?? 0) > 0 && (
+                  <div>
+                    <h2 className="mb-4 text-2xl font-bold text-cp-yellow">Standings</h2>
+                    <div className="rounded-lg bg-cp-gray/20 p-4"><GoalsTable rows={d.goals ?? []} /></div>
+                    <p className="mt-2 text-xs text-gray-400">Ranked by goal difference, then goals scored. Updates as results come in.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         ) : (
           <section>
