@@ -66,7 +66,7 @@ export function receiptLines(b: ReceiptBooking) {
 }
 
 let fonts: { regular: Buffer; bold: Buffer } | undefined
-async function loadFonts() {
+export async function loadFonts() {
   if (!fonts) {
     const dir = path.join(process.cwd(), 'server', 'assets', 'fonts')
     const [regular, bold] = await Promise.all([readFile(path.join(dir, 'DejaVuSans.ttf')), readFile(path.join(dir, 'DejaVuSans-Bold.ttf'))])

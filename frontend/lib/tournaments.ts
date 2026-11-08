@@ -110,6 +110,19 @@ export const api = {
     return call<{ url: string }>(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'POST', body })
   },
   removeImage: (id: string, kind: ImageKind) => call(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'DELETE' }),
+  /** Downloads the players as a PDF (staff only: it includes phone numbers and emails). */
+  downloadEntrantsPdf: async (id: string, list: 'registered' | 'waitlist' | 'active' | 'all') => {
+    const res = await apiFetch(`${base}/tournaments/${id}/entrants/pdf?list=${list}`)
+    if (!res.ok) throw new Error(await apiError(res, 'Could not make the PDF'))
+    const url = URL.createObjectURL(await res.blob())
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tournament_players_${list}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  },
   swapWaitlist: (id: string, outEntrantId: string, inEntrantId: string) =>
     call(`${base}/tournaments/${id}/bracket/swap`, { json: { out_entrant_id: outEntrantId, in_entrant_id: inEntrantId } }),
   reshuffle: (id: string, replaceFromWaitlist = true) =>
