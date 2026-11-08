@@ -6,7 +6,7 @@ import { getSupabase } from '../../supabase'
 import { normalizePhone } from '../../whatsapp/client'
 import { fromIstString } from '../../time'
 import {
-  computeStandings, generateRoundRobin, goalsTable, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
+  computeStandings, finalRanking, generateRoundRobin, goalsTable, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
 } from '../../tournaments/engine'
 import { mapRpcError } from '../bookings'
 import { buildEntrantsPdf } from '../../entrantsPdf'
@@ -74,7 +74,7 @@ type Row = Record<string, any> // eslint-disable-line @typescript-eslint/no-expl
 const TERMINAL = ['withdrawn', 'disqualified']
 const PLAYING = ['registered', 'checked_in']
 
-async function loadTournament(db: SupabaseClient, id: string): Promise<Row> {
+export async function loadTournament(db: SupabaseClient, id: string): Promise<Row> {
   const { data, error } = await db.from('tournament_overview').select('*').eq('id', id).maybeSingle()
   if (error) throw fail('Failed to load the tournament', error)
   if (!data) throw notFound('Tournament not found')
@@ -721,6 +721,7 @@ export async function getTournamentDetail(tournamentId: string, db: SupabaseClie
   }
 
   const names = new Map(entrants.map((e) => [e.id as string, e.display_name as string]))
+  const days = await daysInfo(db, t)
   const rounds = totalRounds(matches as never[])
   const described = matches.map((m) => ({
     ...m,
@@ -744,6 +745,34 @@ export async function getTournamentDetail(tournamentId: string, db: SupabaseClie
     standings,
     goals: t.tournament_type === 'knockout' ? goalsTable(entrants.map((e) => ({ id: e.id as string, display_name: e.display_name as string })), matches as never[]) : [],
     champion_name: t.champion_entrant_id ? names.get(t.champion_entrant_id) ?? null : null,
+    final_ranking: t.tournament_type === 'knockout' ? finalRanking(entrants.map((e) => ({ id: e.id as string, display_name: e.display_name as string })), matches as never[]) : [],
+    days,
+  }
+}
+
+export interface DayInfo { id: string; name: string; day_no: number | null; status: string; max_players: number; registered_count: number; waitlist_count: number; starts_at: string | null; champion_name: string | null }
+
+/**
+ * For a tournament split over days: its days (when it is the hub) or its sibling days and the hub (when it is one day).
+ * Null for an ordinary tournament. Never fails the page: before the days SQL has been run it simply finds nothing.
+ */
+async function daysInfo(db: SupabaseClient, t: Row): Promise<{ parent: { id: string; name: string } | null; days: DayInfo[] } | null> {
+  const hubId = (t.split_days ? t.id : t.parent_id) as string | null | undefined
+  if (!hubId) return null
+  const [{ data: rows }, { data: hub }] = await Promise.all([
+    db.from('tournament_overview').select('id, name, day_no, status, max_players, registered_count, waitlist_count, starts_at, champion_entrant_id').eq('parent_id', hubId).order('day_no'),
+    t.split_days ? Promise.resolve({ data: null }) : db.from('tournaments').select('id, name').eq('id', hubId).maybeSingle(),
+  ])
+  const list = (rows ?? []) as Row[]
+  const champs = list.map((r) => r.champion_entrant_id).filter(Boolean) as string[]
+  const { data: champRows } = champs.length ? await db.from('tournament_entrants').select('id, display_name').in('id', champs) : { data: [] as Row[] }
+  const champName = new Map(((champRows ?? []) as Row[]).map((c) => [c.id as string, c.display_name as string]))
+  return {
+    parent: hub ? { id: hub.id as string, name: hub.name as string } : null,
+    days: list.map((r) => ({
+      id: r.id, name: r.name, day_no: r.day_no ?? null, status: r.status, max_players: r.max_players, registered_count: r.registered_count,
+      waitlist_count: r.waitlist_count, starts_at: r.starts_at ?? null, champion_name: r.champion_entrant_id ? champName.get(r.champion_entrant_id) ?? null : null,
+    })),
   }
 }
 
