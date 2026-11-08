@@ -32,6 +32,7 @@ export default function ManageTournamentPage() {
   const [tab, setTab] = useState<'entrants' | 'bracket'>('entrants')
   const [swapIn, setSwapIn] = useState<string | null>(null) // the waitlisted entrant being added to the bracket
   const [swapOut, setSwapOut] = useState('')
+  const [pdfList, setPdfList] = useState<'registered' | 'waitlist' | 'active' | 'all'>('active')
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -329,6 +330,16 @@ export default function ManageTournamentPage() {
                   </div>
                 </form>
               )}
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-gray-300">Download players as PDF:</span>
+                <select className="rounded border border-gray-600 bg-gray-800 px-2 py-1.5" value={pdfList} onChange={(e) => setPdfList(e.target.value as typeof pdfList)}>
+                  <option value="active">Registered + waitlist</option>
+                  <option value="registered">Registered only</option>
+                  <option value="waitlist">Waitlist only</option>
+                  <option value="all">Everyone (including withdrawn)</option>
+                </select>
+                <button disabled={busy} className={`${btn} bg-cyan-700`} onClick={() => run(() => api.downloadEntrantsPdf(id, pdfList))}>Download PDF</button>
+              </div>
               <div className="space-y-2">
                 {d.entrants.map((e) => (
                   <div key={e.id} className="flex flex-wrap items-center gap-3 rounded-lg bg-gray-900 px-4 py-3">

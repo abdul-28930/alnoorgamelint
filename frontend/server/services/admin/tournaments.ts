@@ -9,6 +9,7 @@ import {
   computeStandings, generateRoundRobin, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
 } from '../../tournaments/engine'
 import { mapRpcError } from '../bookings'
+import { buildEntrantsPdf } from '../../entrantsPdf'
 import { notifyEntrants } from '../tournamentNotifications'
 
 // ---- shared -------------------------------------------------------------------------------------
@@ -309,6 +310,14 @@ export async function addEntrant(tournamentId: string, input: z.infer<typeof add
   // members have a number on their account; staff-registered players have the one staff typed
   if (data?.id && (userId || (phone && input.send_whatsapp !== false))) await notifyEntrants(db, tournamentId, [data.id as string], 'registered')
   return data
+}
+
+export const entrantsPdfQuery = z.object({ list: z.enum(['registered', 'waitlist', 'active', 'all']).default('active') })
+
+/** A printable list of the players (name, phone, email, status) for staff; contacts are staff-only. */
+export async function entrantsPdf(tournamentId: string, list: z.infer<typeof entrantsPdfQuery>['list'], db: SupabaseClient = getSupabase()) {
+  const d = await getTournamentDetail(tournamentId, db, { contacts: true })
+  return buildEntrantsPdf(d.tournament as { name: string }, d.entrants, list)
 }
 
 async function loadEntrant(db: SupabaseClient, tournamentId: string, entrantId: string): Promise<Row> {
