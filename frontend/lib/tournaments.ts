@@ -147,6 +147,19 @@ export const api = {
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 10000)
   },
+  /** The bracket (or, before it is generated, the preview in this order) as a PDF with phone numbers and the waitlist. */
+  downloadBracketPdf: async (id: string, order?: string[]) => {
+    const res = await apiFetch(`${base}/tournaments/${id}/bracket/pdf`, { method: 'POST', body: JSON.stringify(order ? { order } : {}) })
+    if (!res.ok) throw new Error(await apiError(res, 'Could not make the PDF'))
+    const url = URL.createObjectURL(await res.blob())
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'tournament_bracket.pdf'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  },
   /** Puts a waitlisted entrant (entrantId) or a member who is not entered yet (userId) in the place of a no-show. */
   swapWaitlist: (id: string, outEntrantId: string, who: { entrantId?: string; userId?: string }) =>
     call(`${base}/tournaments/${id}/bracket/swap`, { json: { out_entrant_id: outEntrantId, ...(who.entrantId ? { in_entrant_id: who.entrantId } : { in_user_id: who.userId }) } }),

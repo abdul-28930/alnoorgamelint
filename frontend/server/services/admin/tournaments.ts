@@ -9,6 +9,7 @@ import {
   computeStandings, finalRanking, generateRoundRobin, goalsTable, generateSingleElimination, noShowOrder, roundName, shuffle, totalRounds, type GeneratedMatch,
 } from '../../tournaments/engine'
 import { mapRpcError } from '../bookings'
+import { buildBracketPdf } from '../../bracketPdf'
 import { buildEntrantsPdf } from '../../entrantsPdf'
 import { notifyEntrants } from '../tournamentNotifications'
 
@@ -320,6 +321,19 @@ export const entrantsPdfQuery = z.object({ list: z.enum(['registered', 'waitlist
 export async function entrantsPdf(tournamentId: string, list: z.infer<typeof entrantsPdfQuery>['list'], order: z.infer<typeof entrantsPdfQuery>['order'] = 'registered', db: SupabaseClient = getSupabase()) {
   const d = await getTournamentDetail(tournamentId, db, { contacts: true })
   return buildEntrantsPdf(d.tournament as { name: string }, d.entrants, list, new Date(), order)
+}
+
+export const bracketPdfSchema = z.object({ order: z.array(uuid).max(512).optional() }).default({})
+
+/**
+ * The bracket as a PDF with players' phone numbers and the waitlist. Once the bracket exists this is the real one; before that
+ * it is a preview, drawn in the `order` the staff screen is showing (so the sheet matches what they see).
+ */
+export async function bracketPdf(tournamentId: string, order: string[] | undefined, db: SupabaseClient = getSupabase()) {
+  const d = await getTournamentDetail(tournamentId, db, { contacts: true })
+  const started = d.matches.length > 0
+  const matches = started ? d.matches : (await previewBracket(tournamentId, order, db)).matches
+  return buildBracketPdf(d.tournament as { name: string }, matches as never[], d.entrants, { preview: !started })
 }
 
 async function loadEntrant(db: SupabaseClient, tournamentId: string, entrantId: string): Promise<Row> {
