@@ -210,12 +210,16 @@ export const addEntrantSchema = z
   .object({
     display_name: z.string().trim().min(1).max(60).optional(),
     username: z.string().trim().min(1).max(30).optional(),
+    /** a member picked from the search */
+    user_id: uuid.optional(),
     phone: phoneField.optional(),
     email: emailField.optional(),
     send_whatsapp: z.boolean().optional(),
+    /** put them on the waitlist even if there is room (always, once the bracket exists) */
+    to_waitlist: z.boolean().optional(),
   })
-  .refine((v) => v.display_name || v.username, 'Enter a name or a username')
-  .refine((v) => v.username || v.phone, { message: 'Enter the player\'s phone number', path: ['phone'] })
+  .refine((v) => v.display_name || v.username || v.user_id, 'Enter a name or choose a member')
+  .refine((v) => v.username || v.user_id || v.phone, { message: 'Enter the player\'s phone number', path: ['phone'] })
 
 /** 10-digit Indian mobile number (what is stored and shown), or an error staff can act on. */
 function cleanPhone(raw: string | null | undefined): string | null {
@@ -272,17 +276,15 @@ export async function promoteWaitlist(db: SupabaseClient, tournamentId: string):
 
 export async function addEntrant(tournamentId: string, input: z.infer<typeof addEntrantSchema>, db: SupabaseClient = getSupabase()) {
   const t = await loadTournament(db, tournamentId)
-  if (hasStarted(t)) throw badRequest('Entrants cannot be added after the bracket has been generated')
+  // once the bracket exists the only way in is the waitlist (a no-show can then be replaced by someone chosen from it)
+  if (hasStarted(t) && !input.to_waitlist) throw badRequest('The bracket has been generated, so new players can only be added to the waitlist')
 
   let userId: string | null = null
   let name = input.display_name
-  if (input.username) {
-    const { data: profile } = await db
-      .from('user_profiles')
-      .select('user_id, username, full_name')
-      .ilike('username', escapeLike(input.username))
-      .maybeSingle()
-    if (!profile) throw notFound('No player has that username')
+  if (input.username || input.user_id) {
+    const q = db.from('user_profiles').select('user_id, username, full_name')
+    const { data: profile } = await (input.user_id ? q.eq('user_id', input.user_id) : q.ilike('username', escapeLike(input.username!))).maybeSingle()
+    if (!profile) throw notFound(input.user_id ? 'Member not found' : 'No player has that username')
     userId = profile.user_id
     name = name ?? profile.full_name ?? profile.username
   }
@@ -300,7 +302,7 @@ export async function addEntrant(tournamentId: string, input: z.infer<typeof add
       phone,
       email,
       whatsapp_opt_in: input.send_whatsapp !== false,
-      status: t.registered_count >= t.max_players ? 'waitlist' : 'registered',
+      status: input.to_waitlist || t.registered_count >= t.max_players ? 'waitlist' : 'registered',
       payment_status: Number(t.entry_fee) > 0 ? 'PENDING' : 'NOT_REQUIRED',
     })
     .select()

@@ -108,6 +108,30 @@ describe('entrants', () => {
     await expect(addEntrant('t1', { display_name: 'x', phone: '9876543210' }, f({ status: 'active', started_at: 'x' }))).rejects.toMatchObject({ status: 400 })
   })
 
+  it('adds a specific member picked from the search, on the waitlist even when there is room, and after the bracket exists', async () => {
+    const mk = (over: object = {}) => fakeDb({ tables: {
+      tournament_overview: { data: { ...T, ...over } },
+      tournament_entrants: (c) => (c.some((x) => x.method === 'insert') ? { data: { id: 'e1' } } : { data: null }),
+      user_profiles: { data: { user_id: 'u1', username: 'ann', full_name: 'Ann Lee' } },
+    } })
+    const U = '00000000-0000-4000-8000-000000000001'
+    const insertOf = (f: ReturnType<typeof mk>) => argOf(f.log.find((e) => e.table === 'tournament_entrants' && e.calls.some((c) => c.method === 'insert'))!.calls, 'insert') as Record<string, unknown>
+
+    const room = mk({ registered_count: 1 })
+    await addEntrant('t1', addEntrantSchema.parse({ user_id: U, to_waitlist: true }), room.db)
+    expect(insertOf(room)).toMatchObject({ user_id: 'u1', display_name: 'Ann Lee', status: 'waitlist' })
+    expect(room.log.find((e) => e.table === 'user_profiles')!.calls).toContainEqual({ method: 'eq', args: ['user_id', U] })
+
+    const normal = mk({ registered_count: 1 })
+    await addEntrant('t1', addEntrantSchema.parse({ user_id: U }), normal.db)
+    expect(insertOf(normal)).toMatchObject({ status: 'registered' })
+
+    const started = mk({ started_at: 'x', status: 'active', registered_count: 4 })
+    await addEntrant('t1', addEntrantSchema.parse({ user_id: U, to_waitlist: true }), started.db)
+    expect(insertOf(started)).toMatchObject({ status: 'waitlist' })
+    await expect(addEntrant('t1', addEntrantSchema.parse({ user_id: U }), mk({ started_at: 'x', status: 'active' }).db)).rejects.toMatchObject({ status: 400, message: expect.stringContaining('waitlist') })
+  })
+
   const entrantRow = { id: 'e1', tournament_id: 't1', status: 'registered' }
   const upd = (t: object, entrant: object, input: object, extra: Record<string, unknown> = {}) => {
     const f = fakeDb({ tables: {

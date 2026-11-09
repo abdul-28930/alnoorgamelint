@@ -11,6 +11,7 @@ import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { EditDetails } from '@/components/tournaments/edit-details'
 import { DaysBar, FinalRanking, SplitPanel } from '@/components/tournaments/days'
+import { MemberSearch, type Member } from '@/components/admin/member-search'
 import { ReplaceNoShow } from '@/components/tournaments/replace-panel'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
@@ -35,10 +36,14 @@ export default function ManageTournamentPage() {
   const [tab, setTab] = useState<'entrants' | 'bracket'>('entrants')
   const [swapIn, setSwapIn] = useState<string | null>(null) // the waitlisted entrant being added to the bracket
   const [swapOut, setSwapOut] = useState('')
-  const [replaceFor, setReplaceFor] = useState<string | null>(null) // the no-show being replaced
+  const [replaceFor, setReplaceFor] = useState<string | null>(null) // the no-show being replaced (Entrants tab)
+  const [replaceModal, setReplaceModal] = useState<string | null>(null) // the no-show being replaced (from a match card)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [pdfList, setPdfList] = useState<'registered' | 'waitlist' | 'active' | 'all'>('active')
   const [pdfOrder, setPdfOrder] = useState<'registered' | 'name'>('registered')
   const [entrantSort, setEntrantSort] = useState<EntrantSort>('oldest')
+  const [addMember, setAddMember] = useState<Member | null>(null)
+  const [newWaitlist, setNewWaitlist] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -116,6 +121,12 @@ export default function ManageTournamentPage() {
     })
 
   // under each player in a match: how to reach them, and whether they turned up
+  // put a waitlisted player (or a member who is not entered yet) in the place of a no-show; the match carries on with them
+  const doReplace = (out: Entrant, who: { entrantId?: string; userId?: string }, label: string) => {
+    if (!confirm(`${label} takes ${out.display_name}'s place in the bracket. ${out.display_name} is withdrawn and ${label} is told on WhatsApp. Everyone else keeps their match.`)) return
+    run(async () => { await api.swapWaitlist(id, out.id, who); setReplaceFor(null); setReplaceModal(null); setNotice(`${label} is now in the bracket in place of ${out.display_name}.`) })
+  }
+
   const sideInfo = (eid: string | null, _slot: 1 | 2, m: Match) => {
     const e = eid ? byId.get(eid) : undefined
     if (!e) return null
@@ -132,6 +143,9 @@ export default function ManageTournamentPage() {
           {e.no_show && <span className="rounded bg-red-900/70 px-1.5 py-0.5 font-semibold text-red-300">NO-SHOW</span>}
           {open && <button disabled={busy} className="rounded bg-gray-700 px-2 py-0.5 text-gray-200 hover:bg-gray-600 disabled:opacity-50" onClick={() => toggleNoShow(e)}>{e.no_show ? 'Mark present' : 'Mark no-show'}</button>}
         </div>
+        {open && e.no_show && m.status !== 'live' && ['registered', 'checked_in'].includes(e.status) && (
+          <button disabled={busy} className="w-full rounded bg-cyan-700 px-2 py-1 font-medium text-white hover:bg-cyan-600 disabled:opacity-50" onClick={() => setReplaceModal(e.id)}>Replace with a waitlist player…</button>
+        )}
       </div>
     )
   }
@@ -279,7 +293,7 @@ export default function ManageTournamentPage() {
           </details>
 
           {started && (
-            <details className="mb-6 rounded-lg bg-gray-900 p-4" open={d.matches.some((m) => m.scheduled_at)}>
+            <details id="match-schedule" className="mb-6 rounded-lg bg-gray-900 p-4" open={scheduleOpen || d.matches.some((m) => m.scheduled_at)} onToggle={(ev) => setScheduleOpen((ev.target as HTMLDetailsElement).open)}>
               <summary className="cursor-pointer font-semibold">Match schedule (times and consoles)</summary>
               <SchedulePanel t={t} matches={d.matches} onChanged={load} />
               {d.matches.some((m) => m.scheduled_at) && <div className="mt-6"><ScheduleList matches={d.matches} /></div>}
@@ -330,19 +344,38 @@ export default function ManageTournamentPage() {
 
           {!t.split_days && tab === 'entrants' && (
             <div>
-              {!started && (
+              <div className="mb-4 rounded-lg bg-gray-900 p-4">
+                <div className="mb-2 text-sm font-semibold text-cyan-300">Add a specific member{started ? ' to the waitlist' : ''}</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <MemberSearch value={addMember} onChange={setAddMember} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button disabled={busy || !addMember} className={`${btn} bg-cyan-700`}
+                      onClick={() => addMember && run(async () => { await api.addEntrant(id, { user_id: addMember.user_id, to_waitlist: true }); setNotice(`${addMember.full_name || addMember.username} is on the waitlist.`); setAddMember(null) })}>
+                      Add to waitlist
+                    </button>
+                    {!started && (
+                      <button disabled={busy || !addMember} className={`${btn} bg-green-600`}
+                        onClick={() => addMember && run(async () => { await api.addEntrant(id, { user_id: addMember.user_id }); setNotice(`${addMember.full_name || addMember.username} is registered${t.registered_count >= t.max_players ? ' (on the waitlist, the tournament is full)' : ''}.`); setAddMember(null) })}>
+                        Register now
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-gray-400">Search by username, name, email or phone. They get the WhatsApp message with their place. A waitlisted player can then be chosen to replace a no-show.</p>
+              </div>
+              {(
                 <form
                   className="mb-4 rounded-lg bg-gray-900 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     if (!newName.trim() || !newPhone.trim()) return
                     run(async () => {
-                      await api.addEntrant(id, { display_name: newName.trim(), phone: newPhone.trim(), ...(newEmail.trim() ? { email: newEmail.trim() } : {}), send_whatsapp: newWhatsapp })
+                      await api.addEntrant(id, { display_name: newName.trim(), phone: newPhone.trim(), ...(newEmail.trim() ? { email: newEmail.trim() } : {}), send_whatsapp: newWhatsapp, ...(started ? { to_waitlist: true } : {}) })
                       setNewName(''); setNewPhone(''); setNewEmail('')
                     })
                   }}
                 >
-                  <div className="mb-2 text-sm font-semibold text-cyan-300">Register a player on their behalf</div>
+                  <div className="mb-2 text-sm font-semibold text-cyan-300">{started ? 'Add a player without an account to the waitlist' : 'Register a player on their behalf'}</div>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <input className="rounded border border-gray-600 bg-gray-800 px-3 py-2" placeholder="Name *" value={newName} onChange={(e) => setNewName(e.target.value)} />
                     <input className="rounded border border-gray-600 bg-gray-800 px-3 py-2" placeholder="Phone * (10 digits)" inputMode="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
@@ -350,7 +383,7 @@ export default function ManageTournamentPage() {
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-4">
                     <label className="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" checked={newWhatsapp} onChange={(e) => setNewWhatsapp(e.target.checked)} />Send them the WhatsApp confirmation</label>
-                    <button className={`${btn} bg-green-600`} disabled={busy || !newName.trim() || !newPhone.trim()}>Register player</button>
+                    <button className={`${btn} bg-green-600`} disabled={busy || !newName.trim() || !newPhone.trim()}>{started ? 'Add to waitlist' : 'Register player'}</button>
                   </div>
                 </form>
               )}
@@ -426,10 +459,7 @@ export default function ManageTournamentPage() {
                     {!started && <button disabled={busy} className={`${btn} text-red-400`} onClick={() => run(() => api.removeEntrant(id, e.id))}>Remove</button>}
                     {replaceFor === e.id && (
                       <ReplaceNoShow out={e} busy={busy} waitlist={d.entrants.filter((x) => x.status === 'waitlist')} onClose={() => setReplaceFor(null)}
-                        onConfirm={(who, label) => {
-                          if (!confirm(`${label} takes ${e.display_name}'s place in the bracket. ${e.display_name} is withdrawn and ${label} is told on WhatsApp. Everyone else keeps their match.`)) return
-                          run(async () => { await api.swapWaitlist(id, e.id, who); setReplaceFor(null); setNotice(`${label} is now in the bracket in place of ${e.display_name}.`) })
-                        }} />
+                        onConfirm={(who, label) => doReplace(e, who, label)} />
                     )}
                     {swapIn === e.id && (() => {
                       const absent = d.entrants.filter((x) => x.no_show && ['registered', 'checked_in'].includes(x.status))
@@ -502,6 +532,9 @@ export default function ManageTournamentPage() {
                           Replace no-shows from the waitlist ({t.waitlist_count} waiting)
                         </label>
                       )}
+                      <button className={`${btn} bg-gray-700`} onClick={() => { setScheduleOpen(true); setTimeout(() => document.getElementById('match-schedule')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}>
+                        {d.matches.some((m) => m.scheduled_at) ? 'Match times ↑' : 'Plan match times ↑'}
+                      </button>
                       <button
                         disabled={busy || noShowCount === 0 || !noResultsYet}
                         title={!noResultsYet ? 'Only possible before any match is live or finished (undo results first)' : noShowCount === 0 ? 'Mark the no-shows first' : 'Re-draw so no-shows play no-shows'}
@@ -552,6 +585,17 @@ export default function ManageTournamentPage() {
               </div>
             )
           )}
+          {replaceModal && (() => {
+            const out = d.entrants.find((x) => x.id === replaceModal)
+            if (!out) return null
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setReplaceModal(null)}>
+                <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-cyan-800 bg-gray-900 p-4" onClick={(ev) => ev.stopPropagation()}>
+                  <ReplaceNoShow out={out} busy={busy} waitlist={d.entrants.filter((x) => x.status === 'waitlist')} onClose={() => setReplaceModal(null)} onConfirm={(who, label) => doReplace(out, who, label)} />
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
     </AdminGuard>
