@@ -314,12 +314,12 @@ export async function addEntrant(tournamentId: string, input: z.infer<typeof add
   return data
 }
 
-export const entrantsPdfQuery = z.object({ list: z.enum(['registered', 'waitlist', 'active', 'all']).default('active') })
+export const entrantsPdfQuery = z.object({ list: z.enum(['registered', 'waitlist', 'active', 'all']).default('active'), order: z.enum(['registered', 'name']).default('registered') })
 
 /** A printable list of the players (name, phone, email, status) for staff; contacts are staff-only. */
-export async function entrantsPdf(tournamentId: string, list: z.infer<typeof entrantsPdfQuery>['list'], db: SupabaseClient = getSupabase()) {
+export async function entrantsPdf(tournamentId: string, list: z.infer<typeof entrantsPdfQuery>['list'], order: z.infer<typeof entrantsPdfQuery>['order'] = 'registered', db: SupabaseClient = getSupabase()) {
   const d = await getTournamentDetail(tournamentId, db, { contacts: true })
-  return buildEntrantsPdf(d.tournament as { name: string }, d.entrants, list)
+  return buildEntrantsPdf(d.tournament as { name: string }, d.entrants, list, new Date(), order)
 }
 
 async function loadEntrant(db: SupabaseClient, tournamentId: string, entrantId: string): Promise<Row> {

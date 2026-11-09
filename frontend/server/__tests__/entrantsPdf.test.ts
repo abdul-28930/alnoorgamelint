@@ -19,6 +19,31 @@ describe('sectionsFor', () => {
   })
 })
 
+describe('sectionsFor, A to Z', () => {
+  const named = [
+    { id: 'a', status: 'registered', registered_at: '1', display_name: 'sameer' },
+    { id: 'b', status: 'registered', registered_at: '2', display_name: 'Abdul' },
+    { id: 'c', status: 'waitlist', registered_at: '3', display_name: 'Zaid' },
+    { id: 'd', status: 'waitlist', registered_at: '4', display_name: 'Aslam' },
+  ]
+  it('sorts names ignoring capitals, in each section', () => {
+    const s = sectionsFor(named, 'active', 'name')
+    expect(s[0].rows.map((r) => r.display_name)).toEqual(['Abdul', 'sameer'])
+    expect(s[1].rows.map((r) => r.display_name)).toEqual(['Aslam', 'Zaid'])
+  })
+  it('keeps each waiting player\'s true place in the queue', () => {
+    const s = sectionsFor(named, 'waitlist', 'name')
+    expect(s[0].rows.map((r) => [r.display_name, r.waitlist_position])).toEqual([['Aslam', 2], ['Zaid', 1]])
+  })
+  it('registration order is the default', () => {
+    expect(sectionsFor(named, 'registered')[0].rows.map((r) => r.display_name)).toEqual(['sameer', 'Abdul'])
+  })
+  it('still makes the PDF', async () => {
+    const pdf = await buildEntrantsPdf(T, named, 'active', new Date(), 'name')
+    expect(Buffer.from(pdf.slice(0, 5)).toString()).toBe('%PDF-')
+  })
+})
+
 describe('fit', () => {
   const font = { widthOfTextAtSize: (t: string) => t.length * 10 }
   it('leaves short text alone and cuts long text with an ellipsis', () => {

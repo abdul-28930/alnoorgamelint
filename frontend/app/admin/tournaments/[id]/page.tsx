@@ -15,7 +15,7 @@ import { MemberSearch, type Member } from '@/components/admin/member-search'
 import { ReplaceNoShow } from '@/components/tournaments/replace-panel'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
-import { api, STATUS_STYLE, type Entrant, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
+import { api, sortEntrants, STATUS_STYLE, type Entrant, type EntrantSort, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
 
 const NEXT: Record<TournamentStatus, { to: TournamentStatus; label: string }[]> = {
   draft: [{ to: 'open', label: 'Open registration' }],
@@ -40,6 +40,8 @@ export default function ManageTournamentPage() {
   const [replaceModal, setReplaceModal] = useState<string | null>(null) // the no-show being replaced (from a match card)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [pdfList, setPdfList] = useState<'registered' | 'waitlist' | 'active' | 'all'>('active')
+  const [pdfOrder, setPdfOrder] = useState<'registered' | 'name'>('registered')
+  const [entrantSort, setEntrantSort] = useState<EntrantSort>('oldest')
   const [addMember, setAddMember] = useState<Member | null>(null)
   const [newWaitlist, setNewWaitlist] = useState(false)
   const [newName, setNewName] = useState('')
@@ -393,10 +395,20 @@ export default function ManageTournamentPage() {
                   <option value="waitlist">Waitlist only</option>
                   <option value="all">Everyone (including withdrawn)</option>
                 </select>
-                <button disabled={busy} className={`${btn} bg-cyan-700`} onClick={() => run(() => api.downloadEntrantsPdf(id, pdfList))}>Download PDF</button>
+                <select className="rounded border border-gray-600 bg-gray-800 px-2 py-1.5" value={pdfOrder} onChange={(e) => setPdfOrder(e.target.value as typeof pdfOrder)} title="Order of the names in the PDF">
+                  <option value="registered">In registration order</option>
+                  <option value="name">A to Z</option>
+                </select>
+                <button disabled={busy} className={`${btn} bg-cyan-700`} onClick={() => run(() => api.downloadEntrantsPdf(id, pdfList, pdfOrder))}>Download PDF</button>
+              </div>
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-gray-300">Sort the list:</span>
+                {([['oldest', 'Registered first'], ['newest', 'Newest first'], ['az', 'A to Z']] as const).map(([k, label]) => (
+                  <button key={k} type="button" onClick={() => setEntrantSort(k)} className={`rounded px-3 py-1.5 ${entrantSort === k ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-200'}`}>{label}</button>
+                ))}
               </div>
               <div className="space-y-2">
-                {d.entrants.map((e) => (
+                {sortEntrants(d.entrants, entrantSort).map((e) => (
                   <div key={e.id} className="flex flex-wrap items-center gap-3 rounded-lg bg-gray-900 px-4 py-3">
                     <span className="w-8 text-gray-500">{e.seed ?? '–'}</span>
                     <div className="min-w-[10rem] flex-1">

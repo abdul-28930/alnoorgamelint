@@ -10,7 +10,7 @@ import { GoalsTable, StandingsTable } from '@/components/tournaments/standings-t
 import { ScheduleList } from '@/components/tournaments/schedule-panel'
 import { Markdown } from '@/components/ui/markdown'
 import { ShareButton } from '@/components/tournaments/share-button'
-import { publicApi, visitorId, type PublicDetail } from '@/lib/tournaments'
+import { publicApi, sortEntrants, visitorId, type EntrantSort, type PublicDetail } from '@/lib/tournaments'
 
 const btn = 'rounded px-4 py-2 font-semibold disabled:opacity-50'
 const input = 'w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white'
@@ -20,6 +20,7 @@ export default function TournamentPage() {
   const [d, setD] = useState<PublicDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [sort, setSort] = useState<EntrantSort>('az')
   const [busy, setBusy] = useState(false)
   const [needLogin, setNeedLogin] = useState(false) // the server said we are not signed in (expired session)
   const [teamName, setTeamName] = useState('')
@@ -221,8 +222,14 @@ export default function TournamentPage() {
         ) : (
           <section>
             <h2 className="mb-3 text-2xl font-bold text-cp-yellow">Who's in ({d.entrants.filter((e) => e.status !== 'waitlist').length})</h2>
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-gray-400">Sort:</span>
+              {([['az', 'A to Z'], ['newest', 'Newest first'], ['oldest', 'Oldest first']] as const).map(([k, label]) => (
+                <button key={k} type="button" onClick={() => setSort(k)} className={`rounded px-3 py-1 ${sort === k ? 'bg-cp-cyan text-black' : 'bg-gray-700 text-gray-200'}`}>{label}</button>
+              ))}
+            </div>
             <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {d.entrants.filter((e) => e.status !== 'waitlist').map((e) => (
+              {sortEntrants(d.entrants.filter((e) => e.status !== 'waitlist'), sort).map((e) => (
                 <li key={e.id} className="rounded bg-cp-gray/20 px-4 py-2">
                   {e.display_name}
                   {e.team_members.length > 0 && <div className="text-xs text-gray-400">{e.team_members.map((m) => m.name).join(', ')}</div>}
