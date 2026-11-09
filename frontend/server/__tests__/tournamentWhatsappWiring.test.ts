@@ -104,7 +104,7 @@ describe('staff choose which waitlisted player takes a no-show\'s place', () => 
   })
   it('explains refusals and sends nothing', async () => {
     const run = (code: string) => swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_entrant_id: id(2) }, world({ error: { message: code } }).db)
-    await expect(run('ALREADY_STARTED')).rejects.toMatchObject({ status: 400, message: expect.stringContaining('already been played') })
+    await expect(run('ALREADY_STARTED')).rejects.toMatchObject({ status: 400, message: expect.stringContaining('already finished or has a score') })
     await expect(run('NOT_ON_WAITLIST')).rejects.toMatchObject({ status: 400 })
     await expect(run('ENTRANT_NOT_REPLACEABLE')).rejects.toMatchObject({ status: 400 })
     expect(spy).not.toHaveBeenCalled()
@@ -137,6 +137,33 @@ describe('staff choose which waitlisted player takes a no-show\'s place', () => 
     await expect(swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_user_id: id(7) }, w.db)).rejects.toMatchObject({ status: 400 })
     expect(w.log.some((e) => e.table === 'tournament_entrants' && has(e.calls, 'delete'))).toBe(true)
     expect(spy).not.toHaveBeenCalled()
+  })
+  it('brings back a player who withdrew earlier, and puts them back to withdrawn if the swap is refused', async () => {
+    const mk = (rpc: object, statusOfIn = 'withdrawn') => fakeDb({
+      tables: {
+        tournament_overview: { data: { ...T, started_at: 'x', status: 'active' } },
+        tournament_entrants: (c: Call[]) => (has(c, 'update') ? {} : has(c, 'maybeSingle') ? { data: { status: statusOfIn } } : { data: [] }),
+        tournament_matches: { data: [] },
+      },
+      rpcs: { swap_bracket_entrant: rpc },
+    })
+    const ok = mk({ data: {} })
+    await swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_entrant_id: id(2) }, ok.db)
+    const updates = ok.log.filter((e) => e.table === 'tournament_entrants' && has(e.calls, 'update')).map((e) => argOf(e.calls, 'update'))
+    expect(updates[0]).toEqual({ status: 'waitlist' }) // reinstated so the swap can take them in
+    expect(spy).toHaveBeenCalledWith(ok.db, 't1', [id(2)], 'moved_up')
+    spy.mockClear()
+
+    const bad = mk({ error: { message: 'ALREADY_STARTED' } })
+    await expect(swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_entrant_id: id(2) }, bad.db)).rejects.toMatchObject({ status: 400, message: expect.stringContaining('finished or has a score') })
+    const undo = bad.log.filter((e) => e.table === 'tournament_entrants' && has(e.calls, 'update')).map((e) => argOf(e.calls, 'update'))
+    expect(undo).toEqual([{ status: 'waitlist' }, { status: 'withdrawn' }])
+    expect(spy).not.toHaveBeenCalled()
+  })
+  it('a waitlisted player needs no change of status before the swap', async () => {
+    const w = fakeDb({ tables: { tournament_overview: { data: { ...T, started_at: 'x', status: 'active' } }, tournament_entrants: (c: Call[]) => (has(c, 'update') ? {} : has(c, 'maybeSingle') ? { data: { status: 'waitlist' } } : { data: [] }), tournament_matches: { data: [] } }, rpcs: { swap_bracket_entrant: { data: {} } } })
+    await swapWaitlistIntoBracket('t1', { out_entrant_id: id(1), in_entrant_id: id(2) }, w.db)
+    expect(w.log.some((e) => e.table === 'tournament_entrants' && has(e.calls, 'update'))).toBe(false)
   })
   it('needs exactly one player to bring in', () => {
     expect(() => swapSchema.parse({ out_entrant_id: id(1) })).toThrow()

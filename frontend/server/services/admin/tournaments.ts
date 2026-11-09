@@ -533,7 +533,17 @@ export async function swapWaitlistIntoBracket(tournamentId: string, input: z.inf
   // A member who is not in this tournament yet is entered first (as waiting) so the swap can take them in. Undone if the swap fails.
   let inId = input.in_entrant_id as string | undefined
   let created = false
-  if (!inId) {
+  let reinstated = false
+  if (inId) {
+    // someone who withdrew earlier can be brought back into a place: they wait for a moment so the swap can take them in
+    const { data: existing } = await db.from('tournament_entrants').select('status').eq('id', inId).eq('tournament_id', tournamentId).maybeSingle()
+    if (existing?.status === 'withdrawn') {
+      const { error: backError } = await db.from('tournament_entrants').update({ status: 'waitlist' }).eq('id', inId)
+      if (backError?.code === '23505') throw badRequest('That player is already entered again under another entry. Use that entry instead')
+      if (backError) throw entrantWriteError('Failed to bring the player back', backError)
+      reinstated = true
+    }
+  } else {
     const { data: profile } = await db.from('user_profiles').select('user_id, username, full_name').eq('user_id', input.in_user_id!).maybeSingle()
     if (!profile) throw notFound('Member not found')
     const { data: row, error: insertError } = await db
@@ -549,10 +559,11 @@ export async function swapWaitlistIntoBracket(tournamentId: string, input: z.inf
 
   const { error } = await db.rpc('swap_bracket_entrant', { p_tournament_id: tournamentId, p_out: input.out_entrant_id, p_in: inId })
   if (error && created) await db.from('tournament_entrants').delete().eq('id', inId!)
+  if (error && reinstated) await db.from('tournament_entrants').update({ status: 'withdrawn' }).eq('id', inId!)
   if (error) {
     const missing = error.code === 'PGRST202' || /could not find the function/i.test(error.message ?? '')
     if (missing) throw new ApiError(503, 'The database is missing swap_bracket_entrant. Run sql/setup/18_bracket_swap.sql in Supabase, then try again.')
-    throw mapRpcError(error, 'Failed to put the player into the bracket', TOURNAMENT_ERRORS)
+    throw mapRpcError(error, 'Failed to put the player into the bracket', { ...TOURNAMENT_ERRORS, ALREADY_STARTED: [400, 'That player\'s match is already finished or has a score, so they can no longer be replaced'] })
   }
   await notifyEntrants(db, tournamentId, [inId!], 'moved_up')
   return getTournamentDetail(tournamentId, db, { contacts: true })
