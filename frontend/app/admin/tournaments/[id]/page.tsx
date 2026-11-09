@@ -11,6 +11,7 @@ import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { EditDetails } from '@/components/tournaments/edit-details'
 import { DaysBar, FinalRanking, SplitPanel } from '@/components/tournaments/days'
+import { MemberSearch, type Member } from '@/components/admin/member-search'
 import { ReplaceNoShow } from '@/components/tournaments/replace-panel'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
@@ -37,6 +38,8 @@ export default function ManageTournamentPage() {
   const [swapOut, setSwapOut] = useState('')
   const [replaceFor, setReplaceFor] = useState<string | null>(null) // the no-show being replaced
   const [pdfList, setPdfList] = useState<'registered' | 'waitlist' | 'active' | 'all'>('active')
+  const [addMember, setAddMember] = useState<Member | null>(null)
+  const [newWaitlist, setNewWaitlist] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -328,19 +331,38 @@ export default function ManageTournamentPage() {
 
           {!t.split_days && tab === 'entrants' && (
             <div>
-              {!started && (
+              <div className="mb-4 rounded-lg bg-gray-900 p-4">
+                <div className="mb-2 text-sm font-semibold text-cyan-300">Add a specific member{started ? ' to the waitlist' : ''}</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <MemberSearch value={addMember} onChange={setAddMember} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button disabled={busy || !addMember} className={`${btn} bg-cyan-700`}
+                      onClick={() => addMember && run(async () => { await api.addEntrant(id, { user_id: addMember.user_id, to_waitlist: true }); setNotice(`${addMember.full_name || addMember.username} is on the waitlist.`); setAddMember(null) })}>
+                      Add to waitlist
+                    </button>
+                    {!started && (
+                      <button disabled={busy || !addMember} className={`${btn} bg-green-600`}
+                        onClick={() => addMember && run(async () => { await api.addEntrant(id, { user_id: addMember.user_id }); setNotice(`${addMember.full_name || addMember.username} is registered${t.registered_count >= t.max_players ? ' (on the waitlist, the tournament is full)' : ''}.`); setAddMember(null) })}>
+                        Register now
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-gray-400">Search by username, name, email or phone. They get the WhatsApp message with their place. A waitlisted player can then be chosen to replace a no-show.</p>
+              </div>
+              {(
                 <form
                   className="mb-4 rounded-lg bg-gray-900 p-4"
                   onSubmit={(e) => {
                     e.preventDefault()
                     if (!newName.trim() || !newPhone.trim()) return
                     run(async () => {
-                      await api.addEntrant(id, { display_name: newName.trim(), phone: newPhone.trim(), ...(newEmail.trim() ? { email: newEmail.trim() } : {}), send_whatsapp: newWhatsapp })
+                      await api.addEntrant(id, { display_name: newName.trim(), phone: newPhone.trim(), ...(newEmail.trim() ? { email: newEmail.trim() } : {}), send_whatsapp: newWhatsapp, ...(started ? { to_waitlist: true } : {}) })
                       setNewName(''); setNewPhone(''); setNewEmail('')
                     })
                   }}
                 >
-                  <div className="mb-2 text-sm font-semibold text-cyan-300">Register a player on their behalf</div>
+                  <div className="mb-2 text-sm font-semibold text-cyan-300">{started ? 'Add a player without an account to the waitlist' : 'Register a player on their behalf'}</div>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <input className="rounded border border-gray-600 bg-gray-800 px-3 py-2" placeholder="Name *" value={newName} onChange={(e) => setNewName(e.target.value)} />
                     <input className="rounded border border-gray-600 bg-gray-800 px-3 py-2" placeholder="Phone * (10 digits)" inputMode="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
@@ -348,7 +370,7 @@ export default function ManageTournamentPage() {
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-4">
                     <label className="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" checked={newWhatsapp} onChange={(e) => setNewWhatsapp(e.target.checked)} />Send them the WhatsApp confirmation</label>
-                    <button className={`${btn} bg-green-600`} disabled={busy || !newName.trim() || !newPhone.trim()}>Register player</button>
+                    <button className={`${btn} bg-green-600`} disabled={busy || !newName.trim() || !newPhone.trim()}>{started ? 'Add to waitlist' : 'Register player'}</button>
                   </div>
                 </form>
               )}
