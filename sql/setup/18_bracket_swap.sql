@@ -6,7 +6,7 @@
 --   ENTRANT_NOT_REPLACEABLE  `out` is not registered/checked in for this tournament
 --   NOT_ON_WAITLIST          `in` is not waiting for a place in this tournament
 --   NOT_STARTED              no bracket yet (use Promote instead)
---   ALREADY_STARTED          `out` already has a live or finished match
+--   ALREADY_STARTED          `out` already has a finished match, or a live one with a score
 CREATE OR REPLACE FUNCTION swap_bracket_entrant(p_tournament_id UUID, p_out UUID, p_in UUID)
 RETURNS JSON AS $$
 DECLARE
@@ -23,10 +23,12 @@ BEGIN
     SELECT * INTO v_in FROM tournament_entrants WHERE id = p_in AND tournament_id = p_tournament_id FOR UPDATE;
     IF NOT FOUND OR v_in.status <> 'waitlist' THEN RAISE EXCEPTION 'NOT_ON_WAITLIST'; END IF;
 
+    -- a match that is live but has no score yet (the player never turned up) can be taken over; a finished or scored one cannot
     IF EXISTS (
         SELECT 1 FROM tournament_matches
-        WHERE tournament_id = p_tournament_id AND status IN ('live', 'completed')
+        WHERE tournament_id = p_tournament_id
           AND (entrant1_id = p_out OR entrant2_id = p_out OR winner_id = p_out)
+          AND (status = 'completed' OR (status = 'live' AND (score1 IS NOT NULL OR score2 IS NOT NULL)))
     ) THEN RAISE EXCEPTION 'ALREADY_STARTED'; END IF;
 
     UPDATE tournament_matches SET

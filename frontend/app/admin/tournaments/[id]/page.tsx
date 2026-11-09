@@ -143,7 +143,7 @@ export default function ManageTournamentPage() {
           {e.no_show && <span className="rounded bg-red-900/70 px-1.5 py-0.5 font-semibold text-red-300">NO-SHOW</span>}
           {open && <button disabled={busy} className="rounded bg-gray-700 px-2 py-0.5 text-gray-200 hover:bg-gray-600 disabled:opacity-50" onClick={() => toggleNoShow(e)}>{e.no_show ? 'Mark present' : 'Mark no-show'}</button>}
         </div>
-        {open && e.no_show && m.status !== 'live' && ['registered', 'checked_in'].includes(e.status) && (
+        {open && e.no_show && ['registered', 'checked_in'].includes(e.status) && (
           <button disabled={busy} className="w-full rounded bg-cyan-700 px-2 py-1 font-medium text-white hover:bg-cyan-600 disabled:opacity-50" onClick={() => setReplaceModal(e.id)}>Replace with a waitlist player…</button>
         )}
       </div>
@@ -458,7 +458,7 @@ export default function ManageTournamentPage() {
                     )}
                     {!started && <button disabled={busy} className={`${btn} text-red-400`} onClick={() => run(() => api.removeEntrant(id, e.id))}>Remove</button>}
                     {replaceFor === e.id && (
-                      <ReplaceNoShow out={e} busy={busy} waitlist={d.entrants.filter((x) => x.status === 'waitlist')} onClose={() => setReplaceFor(null)}
+                      <ReplaceNoShow out={e} busy={busy} waitlist={[...d.entrants.filter((x) => x.status === 'waitlist'), ...d.entrants.filter((x) => x.status === 'withdrawn' && !x.team_id)]} onClose={() => setReplaceFor(null)}
                         onConfirm={(who, label) => doReplace(e, who, label)} />
                     )}
                     {swapIn === e.id && (() => {
@@ -591,7 +591,7 @@ export default function ManageTournamentPage() {
             return (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setReplaceModal(null)}>
                 <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-cyan-800 bg-gray-900 p-4" onClick={(ev) => ev.stopPropagation()}>
-                  <ReplaceNoShow out={out} busy={busy} waitlist={d.entrants.filter((x) => x.status === 'waitlist')} onClose={() => setReplaceModal(null)} onConfirm={(who, label) => doReplace(out, who, label)} />
+                  <ReplaceNoShow out={out} busy={busy} waitlist={[...d.entrants.filter((x) => x.status === 'waitlist'), ...d.entrants.filter((x) => x.status === 'withdrawn' && !x.team_id)]} onClose={() => setReplaceModal(null)} onConfirm={(who, label) => doReplace(out, who, label)} />
                 </div>
               </div>
             )
