@@ -5,6 +5,7 @@ const nextConfig = {
     outputFileTracingIncludes: {
       '/api/v1/admin/bookings/[id]/receipt': ['./server/assets/fonts/**/*'],
       '/api/v1/admin/tournaments/[id]/entrants/pdf': ['./server/assets/fonts/**/*'],
+      '/api/v1/admin/tournaments/[id]/bracket/pdf': ['./server/assets/fonts/**/*'],
     },
   },
 }

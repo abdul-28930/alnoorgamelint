@@ -50,6 +50,7 @@ export default function ManageTournamentPage() {
   const [newWhatsapp, setNewWhatsapp] = useState(true)
   const [order, setOrder] = useState<string[] | null>(null)
   const [preview, setPreview] = useState<Match[] | null>(null)
+  const [previewOrder, setPreviewOrder] = useState<string[] | null>(null) // the draw the preview shows, so Generate and the PDF use the same one
   const [view, setView] = useState<'bracket' | 'list'>('bracket')
   const [notice, setNotice] = useState<string | null>(null)
   const [replaceFromWaitlist, setReplaceFromWaitlist] = useState(true)
@@ -110,6 +111,7 @@ export default function ManageTournamentPage() {
     ;[ids[i], ids[j]] = [ids[j], ids[i]]
     setOrder(ids)
     setPreview(null)
+    setPreviewOrder(null)
   }
 
   const report = (m: Match, winner: string | null, walkover = false) =>
@@ -234,8 +236,9 @@ export default function ManageTournamentPage() {
                     ))}
                   </ol>
                   <div className="flex gap-2">
-                    <button disabled={busy} className={`${btn} bg-gray-700`} onClick={() => run(async () => setPreview((await api.preview(id, order ?? undefined)).matches))}>Preview</button>
-                    <button disabled={busy} className={`${btn} bg-green-600`} onClick={() => { if (confirm('Generate the bracket? Registration closes and play starts.')) run(async () => { await api.generate(id, order ?? undefined); setOrder(null); setPreview(null) }) }}>Generate & start</button>
+                    <button disabled={busy} className={`${btn} bg-gray-700`} onClick={() => run(async () => { const r = await api.preview(id, order ?? undefined); setPreview(r.matches); setPreviewOrder(r.order.map((o) => o.id)) })}>Preview</button>
+                    {preview && <button disabled={busy} className={`${btn} bg-cyan-700`} onClick={() => run(() => api.downloadBracketPdf(id, previewOrder ?? undefined))}>Download preview PDF</button>}
+                    <button disabled={busy} className={`${btn} bg-green-600`} onClick={() => { if (confirm('Generate the bracket? Registration closes and play starts.')) run(async () => { await api.generate(id, order ?? previewOrder ?? undefined); setOrder(null); setPreview(null); setPreviewOrder(null) }) }}>Generate & start</button>
                   </div>
                   {preview && <div className="mt-4"><BracketView matches={preview} /></div>}
                 </div>
@@ -532,6 +535,7 @@ export default function ManageTournamentPage() {
                           Replace no-shows from the waitlist ({t.waitlist_count} waiting)
                         </label>
                       )}
+                      <button disabled={busy} className={`${btn} bg-cyan-700`} onClick={() => run(() => api.downloadBracketPdf(id))}>Download bracket PDF</button>
                       <button className={`${btn} bg-gray-700`} onClick={() => { setScheduleOpen(true); setTimeout(() => document.getElementById('match-schedule')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}>
                         {d.matches.some((m) => m.scheduled_at) ? 'Match times ↑' : 'Plan match times ↑'}
                       </button>
