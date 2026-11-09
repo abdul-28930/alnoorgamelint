@@ -10,9 +10,9 @@ export const maxDuration = 20
 export const GET = route(async (req, ctx: { params: { id: string } }) => {
   await requireRole(req, ['admin'])
   const id = uuidParam.parse(ctx.params.id)
-  const { list } = parseQuery(req, entrantsPdfQuery)
-  const pdf = await entrantsPdf(id, list)
+  const { list, order } = parseQuery(req, entrantsPdfQuery)
+  const pdf = await entrantsPdf(id, list, order)
   return new Response(pdf, {
-    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="tournament_players_${list}.pdf"` },
+    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="tournament_players_${list}${order === 'name' ? '_a-z' : ''}.pdf"` },
   })
 })

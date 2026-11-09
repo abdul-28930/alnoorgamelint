@@ -46,6 +46,7 @@ export interface Entrant {
   status: 'registered' | 'waitlist' | 'checked_in' | 'withdrawn' | 'disqualified'
   payment_status: 'NOT_REQUIRED' | 'PENDING' | 'PAID'
   no_show?: boolean
+  registered_at?: string | null
   email?: string | null // staff screens only
   phone?: string | null
   user_id?: string | null
@@ -134,13 +135,13 @@ export const api = {
   },
   removeImage: (id: string, kind: ImageKind) => call(`${base}/tournaments/${id}/image?kind=${kind}`, { method: 'DELETE' }),
   /** Downloads the players as a PDF (staff only: it includes phone numbers and emails). */
-  downloadEntrantsPdf: async (id: string, list: 'registered' | 'waitlist' | 'active' | 'all') => {
-    const res = await apiFetch(`${base}/tournaments/${id}/entrants/pdf?list=${list}`)
+  downloadEntrantsPdf: async (id: string, list: 'registered' | 'waitlist' | 'active' | 'all', order: 'registered' | 'name' = 'registered') => {
+    const res = await apiFetch(`${base}/tournaments/${id}/entrants/pdf?list=${list}&order=${order}`)
     if (!res.ok) throw new Error(await apiError(res, 'Could not make the PDF'))
     const url = URL.createObjectURL(await res.blob())
     const a = document.createElement('a')
     a.href = url
-    a.download = `tournament_players_${list}.pdf`
+    a.download = `tournament_players_${list}${order === 'name' ? '_a-z' : ''}.pdf`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -208,7 +209,7 @@ export interface MyTeam {
 
 export interface PublicDetail {
   tournament: PublicTournament
-  entrants: { id: string; display_name: string; seed: number | null; status: string; team_members: { name: string }[] }[]
+  entrants: { id: string; display_name: string; seed: number | null; status: string; registered_at?: string | null; team_members: { name: string }[] }[]
   matches: Match[]
   rounds: number
   standings: StandingRow[]
@@ -307,4 +308,15 @@ export function slotParts(iso: string | null | undefined): { day: string; time: 
     time: `${h12}:${String(ist.getUTCMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`,
     key: ist.toISOString().slice(0, 10),
   }
+}
+
+export type EntrantSort = 'oldest' | 'newest' | 'az'
+
+/** The list in the order staff or players asked for: oldest registration first (the queue order), newest first, or A to Z. */
+export function sortEntrants<T extends { display_name: string; registered_at?: string | null }>(rows: T[], sort: EntrantSort): T[] {
+  const time = (r: T) => String(r.registered_at ?? '')
+  const copy = rows.slice()
+  if (sort === 'az') return copy.sort((a, b) => a.display_name.localeCompare(b.display_name, 'en', { sensitivity: 'base' }) || time(a).localeCompare(time(b)))
+  if (sort === 'newest') return copy.sort((a, b) => time(b).localeCompare(time(a)))
+  return copy.sort((a, b) => time(a).localeCompare(time(b)))
 }

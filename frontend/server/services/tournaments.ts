@@ -99,7 +99,7 @@ export async function getPublicTournament(id: string, userId: string | null, db:
     entrants: d.entrants
       .filter((e: Row) => e.status !== 'withdrawn')
       .map((e: Row) => ({
-        id: e.id, display_name: e.display_name, seed: e.seed, status: e.status,
+        id: e.id, display_name: e.display_name, seed: e.seed, status: e.status, registered_at: e.registered_at ?? null,
         team_members: (e.team_members ?? []).filter((m: Row) => m.status === 'accepted').map((m: Row) => ({ name: m.name })),
       })),
     // the waiting list, in the order places will be given out (oldest sign-up first)

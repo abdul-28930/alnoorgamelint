@@ -150,7 +150,7 @@ describe('public detail and views', () => {
       tournament_team_members: { data: [] },
     } })
     const out = await getPublicTournament('t1', 'u1', db)
-    expect(out.entrants).toEqual([{ id: 'e1', display_name: 'Neo', seed: 1, status: 'registered', team_members: [] }])
+    expect(out.entrants).toEqual([{ id: 'e1', display_name: 'Neo', seed: 1, status: 'registered', registered_at: null, team_members: [] }])
     expect(JSON.stringify(out)).not.toMatch(/user_id|payment_status":"PAID|secret/)
     expect(out.me).toMatchObject({ entrant: { id: 'e1' }, teams: [] })
     expect((await getPublicTournament('t1', null, db)).me).toBeNull()
