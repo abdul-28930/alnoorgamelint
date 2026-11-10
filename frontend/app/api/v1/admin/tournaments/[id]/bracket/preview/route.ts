@@ -8,6 +8,6 @@ export const dynamic = 'force-dynamic'
 // Shows the seeding and matches that generating would create, without saving anything.
 export const POST = route(async (req, ctx: { params: { id: string } }) => {
   await requireRole(req, ['admin'])
-  const { order } = await parseJsonOptional(req, bracketSchema)
-  return previewBracket(uuidParam.parse(ctx.params.id), order)
+  const { order, schedule } = await parseJsonOptional(req, bracketSchema)
+  return previewBracket(uuidParam.parse(ctx.params.id), order, undefined, schedule)
 })

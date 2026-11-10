@@ -10,6 +10,8 @@ import {
 } from '../../tournaments/engine'
 import { mapRpcError } from '../bookings'
 import { buildBracketPdf } from '../../bracketPdf'
+import { planSchedule, type ScheduleSettings } from '../../tournaments/schedule'
+import { generateSchedule, scheduleSettingsSchema } from './schedule'
 import { buildEntrantsPdf } from '../../entrantsPdf'
 import { notifyEntrants } from '../tournamentNotifications'
 
@@ -342,7 +344,12 @@ export const bracketPdfSchema = z.object({ order: z.array(uuid).max(512).optiona
 export async function bracketPdf(tournamentId: string, order: string[] | undefined, db: SupabaseClient = getSupabase()) {
   const d = await getTournamentDetail(tournamentId, db, { contacts: true })
   const started = d.matches.length > 0
-  const matches = started ? d.matches : (await previewBracket(tournamentId, order, db)).matches
+  let settings: ScheduleSettings | undefined
+  if (!started) {
+    const { data } = await db.from('tournaments').select('schedule_settings').eq('id', tournamentId).maybeSingle()
+    settings = (data?.schedule_settings as ScheduleSettings | null) ?? undefined // so the preview sheet shows the match times that were set
+  }
+  const matches = started ? d.matches : (await previewBracket(tournamentId, order, db, settings)).matches
   return buildBracketPdf(d.tournament as { name: string }, matches as never[], d.entrants, { preview: !started })
 }
 
@@ -403,7 +410,7 @@ export async function removeEntrant(tournamentId: string, entrantId: string, db:
 
 // ---- bracket ------------------------------------------------------------------------------------
 
-export const bracketSchema = z.object({ order: z.array(uuid).max(1024).optional() }).default({})
+export const bracketSchema = z.object({ order: z.array(uuid).max(1024).optional(), schedule: scheduleSettingsSchema.optional() }).default({})
 
 const byRegistration = (a: Row, b: Row) =>
   (a.seed ?? Infinity) - (b.seed ?? Infinity) || String(a.registered_at).localeCompare(String(b.registered_at))
@@ -448,13 +455,37 @@ function describeMatches(t: Row, matches: GeneratedMatch[], names: Map<string, s
   }))
 }
 
-export async function previewBracket(tournamentId: string, order: string[] | undefined, db: SupabaseClient = getSupabase()) {
+/** Remembers the match-time settings the staff typed, so generating the bracket afterwards uses the same ones. Never fails the caller. */
+async function rememberSchedule(db: SupabaseClient, tournamentId: string, settings: ScheduleSettings) {
+  const { error } = await db.from('tournaments').update({ schedule_settings: settings }).eq('id', tournamentId)
+  if (error) console.error('Could not save the schedule settings:', error.message)
+}
+
+/**
+ * The seeding and matches that generating would create, and, when match-time settings are given, the approximate kick-off
+ * time and console of every match (the same plan the real bracket gets, since it only depends on the shape of the bracket).
+ */
+export async function previewBracket(tournamentId: string, order: string[] | undefined, db: SupabaseClient = getSupabase(), schedule?: ScheduleSettings) {
   const { t, entrants, ordered, matches } = await planBracket(db, tournamentId, order)
   const names = new Map(entrants.map((e) => [e.id as string, e.display_name as string]))
+  let described: Row[] = describeMatches(t, matches, names)
+  let timing: { scheduled: number; unscheduled: number; first: string | null; last: string | null } | null = null
+  if (schedule) {
+    const plan = planSchedule(matches.filter((m) => m.status !== 'bye'), schedule)
+    const at = new Map(plan.items.map((i) => [i.id, i]))
+    described = described.map((m) => {
+      const slot = at.get(m.id as string)
+      return slot ? { ...m, scheduled_at: fromIstString(`${slot.at}:00`).toISOString(), console_no: slot.console } : m
+    })
+    const times = plan.items.map((i) => i.at).sort()
+    timing = { scheduled: plan.items.length, unscheduled: plan.unscheduled.length, first: times[0] ?? null, last: times[times.length - 1] ?? null }
+    await rememberSchedule(db, tournamentId, schedule)
+  }
   return {
     order: ordered.map((id, i) => ({ id, seed: i + 1, display_name: names.get(id) })),
     rounds: totalRounds(matches),
-    matches: describeMatches(t, matches, names),
+    matches: described,
+    schedule: timing,
   }
 }
 
@@ -532,7 +563,7 @@ export async function reshuffleBracket(
   }
 }
 
-export async function startBracket(tournamentId: string, order: string[] | undefined, db: SupabaseClient = getSupabase()) {
+export async function startBracket(tournamentId: string, order: string[] | undefined, db: SupabaseClient = getSupabase(), schedule?: ScheduleSettings) {
   const { ordered, matches } = await planBracket(db, tournamentId, order)
   const { error } = await db.rpc('save_bracket', {
     p_tournament_id: tournamentId,
@@ -540,6 +571,18 @@ export async function startBracket(tournamentId: string, order: string[] | undef
     p_seeds: ordered.map((id, i) => ({ id, seed: i + 1 })),
   })
   if (error) throw mapRpcError(error, 'Failed to generate the bracket', TOURNAMENT_ERRORS)
+
+  // give every match its time and console from the settings the staff set (given now, or saved earlier); a failure here never undoes the bracket
+  try {
+    let settings = schedule ?? null
+    if (!settings) {
+      const { data } = await db.from('tournaments').select('schedule_settings').eq('id', tournamentId).maybeSingle()
+      settings = (data?.schedule_settings as ScheduleSettings | null) ?? null
+    }
+    if (settings) await generateSchedule(tournamentId, { settings, replan_from_now: false }, db)
+  } catch (e) {
+    console.error('The bracket was made, but its match times could not be planned:', e instanceof Error ? e.message : e)
+  }
   return getTournamentDetail(tournamentId, db)
 }
 

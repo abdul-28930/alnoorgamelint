@@ -182,8 +182,9 @@ export const api = {
   notifyContinue: (id: string, batch_id: string) => call<NotifyProgress>(`${base}/tournaments/${id}/notify/continue`, { json: { batch_id } }),
   callMatch: (matchId: string) => call<{ called: { name: string; status: string; detail?: string }[] }>(`${base}/tournament-matches/${matchId}/call`, { method: 'POST' }),
   removeEntrant: (id: string, entrantId: string) => call(`${base}/tournaments/${id}/entrants/${entrantId}`, { method: 'DELETE' }),
-  preview: (id: string, order?: string[]) => call<{ order: { id: string; seed: number; display_name: string }[]; matches: Match[] }>(`${base}/tournaments/${id}/bracket/preview`, { json: { order } }),
-  generate: (id: string, order?: string[]) => call<TournamentDetail>(`${base}/tournaments/${id}/bracket`, { json: { order } }),
+  preview: (id: string, order?: string[], schedule?: ScheduleSettings) =>
+    call<{ order: { id: string; seed: number; display_name: string }[]; matches: Match[]; schedule?: { scheduled: number; unscheduled: number; first: string | null; last: string | null } | null }>(`${base}/tournaments/${id}/bracket/preview`, { json: { order, ...(schedule ? { schedule } : {}) } }),
+  generate: (id: string, order?: string[], schedule?: ScheduleSettings) => call<TournamentDetail>(`${base}/tournaments/${id}/bracket`, { json: { order, ...(schedule ? { schedule } : {}) } }),
   result: (matchId: string, body: Record<string, unknown>) => call(`${base}/tournament-matches/${matchId}/result`, { method: 'PUT', json: body }),
   undo: (matchId: string) => call(`${base}/tournament-matches/${matchId}/result`, { method: 'DELETE' }),
   match: (matchId: string, body: Record<string, unknown>) => call(`${base}/tournament-matches/${matchId}`, { method: 'PUT', json: body }),

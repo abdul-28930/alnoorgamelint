@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { AdminGuard } from '@/components/ui/admin-guard'
 import { BracketView, MatchCard } from '@/components/tournaments/bracket-view'
 import { GoalsTable, StandingsTable } from '@/components/tournaments/standings-table'
-import { SchedulePanel, ScheduleList } from '@/components/tournaments/schedule-panel'
+import { defaultSchedule, ScheduleFields, SchedulePanel, ScheduleList } from '@/components/tournaments/schedule-panel'
 import { NotifyPanel } from '@/components/tournaments/notify-panel'
 import { MarkdownEditor } from '@/components/tournaments/markdown-editor'
 import { EditDetails } from '@/components/tournaments/edit-details'
@@ -15,7 +15,7 @@ import { MemberSearch, type Member } from '@/components/admin/member-search'
 import { ReplaceNoShow } from '@/components/tournaments/replace-panel'
 import { ImageSlot } from '@/components/tournaments/image-slot'
 import { ShareButton } from '@/components/tournaments/share-button'
-import { api, sortEntrants, STATUS_STYLE, type Entrant, type EntrantSort, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
+import { api, sortEntrants, STATUS_STYLE, timeRange, type Entrant, type EntrantSort, type ScheduleSettings, type Match, type TournamentDetail, type TournamentStatus } from '@/lib/tournaments'
 
 const NEXT: Record<TournamentStatus, { to: TournamentStatus; label: string }[]> = {
   draft: [{ to: 'open', label: 'Open registration' }],
@@ -50,6 +50,8 @@ export default function ManageTournamentPage() {
   const [newWhatsapp, setNewWhatsapp] = useState(true)
   const [order, setOrder] = useState<string[] | null>(null)
   const [preview, setPreview] = useState<Match[] | null>(null)
+  const [timeSettings, setTimeSettings] = useState<ScheduleSettings | null>(null) // match times used by the preview and by Generate
+  const [previewTiming, setPreviewTiming] = useState<{ scheduled: number; unscheduled: number; first: string | null; last: string | null } | null>(null)
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null) // the draw the preview shows, so Generate and the PDF use the same one
   const [view, setView] = useState<'bracket' | 'list'>('bracket')
   const [notice, setNotice] = useState<string | null>(null)
@@ -76,6 +78,14 @@ export default function ManageTournamentPage() {
   useEffect(() => {
     if (d && d.matches.length) setTab('bracket')
   }, [d?.matches.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!d || d.matches.length > 0 || timeSettings) return
+    let live = true
+    api.scheduleSettings(id).then((r) => live && setTimeSettings(r.settings ?? defaultSchedule(d.tournament))).catch(() => live && setTimeSettings(defaultSchedule(d.tournament)))
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, id])
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
@@ -235,12 +245,29 @@ export default function ManageTournamentPage() {
                       </li>
                     ))}
                   </ol>
-                  <div className="flex gap-2">
-                    <button disabled={busy} className={`${btn} bg-gray-700`} onClick={() => run(async () => { const r = await api.preview(id, order ?? undefined); setPreview(r.matches); setPreviewOrder(r.order.map((o) => o.id)) })}>Preview</button>
+                  <details open className="mb-4 rounded-lg bg-gray-800 p-3">
+                    <summary className="cursor-pointer font-semibold">Match times: length, buffer, days and lunch break</summary>
+                    <div className="mt-3">
+                      {timeSettings ? (
+                        <ScheduleFields cfg={timeSettings} set={(patch) => setTimeSettings({ ...timeSettings, ...patch })} toPlay={Math.max(0, fieldSize(playing.length) - 1)} />
+                      ) : <p className="text-gray-400">Loading…</p>}
+                      <p className="mt-2 text-xs text-gray-400">"Preview" shows the approximate time and console of every match with these settings. "Generate & start" uses the same settings, so the real bracket gets exactly these times.</p>
+                    </div>
+                  </details>
+                  <div className="flex flex-wrap gap-2">
+                    <button disabled={busy} className={`${btn} bg-gray-700`} onClick={() => run(async () => { const r = await api.preview(id, order ?? undefined, timeSettings ?? undefined); setPreview(r.matches); setPreviewOrder(r.order.map((o) => o.id)); setPreviewTiming(r.schedule ?? null) })}>Preview{timeSettings ? ' with match times' : ''}</button>
                     {preview && <button disabled={busy} className={`${btn} bg-cyan-700`} onClick={() => run(() => api.downloadBracketPdf(id, previewOrder ?? undefined))}>Download preview PDF</button>}
-                    <button disabled={busy} className={`${btn} bg-green-600`} onClick={() => { if (confirm('Generate the bracket? Registration closes and play starts.')) run(async () => { await api.generate(id, order ?? previewOrder ?? undefined); setOrder(null); setPreview(null); setPreviewOrder(null) }) }}>Generate & start</button>
+                    <button disabled={busy} className={`${btn} bg-green-600`} onClick={() => { if (confirm('Generate the bracket? Registration closes and play starts.')) run(async () => { await api.generate(id, order ?? previewOrder ?? undefined, timeSettings ?? undefined); setOrder(null); setPreview(null); setPreviewOrder(null); setPreviewTiming(null) }) }}>Generate & start</button>
                   </div>
+                  {preview && previewTiming && previewTiming.first && (
+                    <p className={`mt-3 text-sm ${previewTiming.unscheduled ? 'text-red-300' : 'text-green-300'}`}>
+                      {previewTiming.unscheduled
+                        ? `${previewTiming.unscheduled} matches do not fit in the days and hours you set. Add a day or longer hours.`
+                        : `All ${previewTiming.scheduled} matches fit. The first starts ${timeRange(new Date(`${previewTiming.first.replace(' ', 'T')}:00+05:30`).toISOString(), null)} and the last starts ${timeRange(new Date(`${previewTiming.last!.replace(' ', 'T')}:00+05:30`).toISOString(), null)} (IST), so play ends a few minutes after that.`}
+                    </p>
+                  )}
                   {preview && <div className="mt-4"><BracketView matches={preview} /></div>}
+                  {preview && preview.some((m) => m.scheduled_at) && <div className="mt-6"><h3 className="mb-2 font-semibold text-cyan-400">Match times (approximate)</h3><ScheduleList matches={preview} /></div>}
                 </div>
   )
 

@@ -55,53 +55,29 @@ export function ScheduleList({ matches, highlightDone = true }: { matches: Match
   )
 }
 
-function defaults(t: TournamentRow): ScheduleSettings {
-  const start = t.starts_at ? new Date(new Date(t.starts_at).getTime() + 330 * 60 * 1000) : new Date(Date.now() + 330 * 60 * 1000)
+export function defaultSchedule(t: TournamentRow): ScheduleSettings {
+  const ist = (iso: string | null | undefined) => (iso ? new Date(new Date(iso).getTime() + 330 * 60 * 1000) : null)
+  const start = ist(t.starts_at) ?? new Date(Date.now() + 330 * 60 * 1000)
+  const end = ist(t.ends_at)
   const d1 = start.toISOString().slice(0, 10)
   const d2 = new Date(start.getTime() + 86_400_000).toISOString().slice(0, 10)
+  const from = t.starts_at ? start.toISOString().slice(11, 16) : '11:00'
+  const to = end && end.toISOString().slice(0, 10) === d1 ? end.toISOString().slice(11, 16) : '18:00'
   return {
     consoles: 4, match_minutes: 3, buffer_minutes: 1,
-    days: [{ date: d1, start: '11:00', end: '18:00' }, { date: d2, start: '11:00', end: '18:00' }],
+    // a day of a tournament played over days is one day; otherwise a weekend by default
+    days: t.parent_id ? [{ date: d1, start: from, end: to }] : [{ date: d1, start: from, end: to }, { date: d2, start: from, end: to }],
     breaks: [{ start: '13:30', end: '14:30', label: 'Lunch' }],
   }
 }
 
-/** Admin: set consoles, match length, buffer, opening hours and breaks, then plan (or re-plan from now). */
-export function SchedulePanel({ t, matches, onChanged }: { t: TournamentRow; matches: Match[]; onChanged: () => Promise<void> }) {
-  const [s, setS] = useState<ScheduleSettings | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
-  // what was saved last time, else sensible defaults
-  useEffect(() => {
-    let live = true
-    api.scheduleSettings(t.id).then((r) => live && setS(r.settings ?? defaults(t))).catch(() => live && setS(defaults(t)))
-    return () => { live = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t.id])
-  const cfg = s ?? defaults(t)
-  const set = (patch: Partial<ScheduleSettings>) => setS({ ...cfg, ...patch })
+/** The match-time settings: consoles, match length, buffer, each day's hours and breaks (lunch...). Used before and after the bracket exists. */
+export function ScheduleFields({ cfg, set, toPlay }: { cfg: ScheduleSettings; set: (patch: Partial<ScheduleSettings>) => void; toPlay: number }) {
   const slot = cfg.match_minutes + cfg.buffer_minutes
-  const toPlay = matches.filter((m) => !['bye', 'completed'].includes(m.status)).length
   const slotsNeeded = Math.ceil(toPlay / Math.max(1, cfg.consoles))
-
-  const plan = async (replan: boolean) => {
-    setBusy(true)
-    setMsg(null)
-    try {
-      const r = await api.planSchedule(t.id, cfg, replan)
-      setMsg({ ok: r.unscheduled === 0, text: r.unscheduled ? `${r.scheduled} matches planned, but ${r.unscheduled} do not fit in the days and hours you set. Add a day or longer hours and plan again.` : `Done: ${r.scheduled} matches planned${r.first ? `, from ${r.first.slice(11)} on ${r.first.slice(0, 10)} to ${r.last?.slice(11)} on ${r.last?.slice(0, 10)}` : ''}.` })
-      await onChanged()
-    } catch (e) {
-      setMsg({ ok: false, text: (e as Error).message })
-    } finally {
-      setBusy(false)
-    }
-  }
   const num = (v: string, min: number, max: number) => Math.min(max, Math.max(min, Math.floor(Number(v) || min)))
-
   return (
-    <div className="mt-4 space-y-4 text-sm">
+    <div className="space-y-4 text-sm">
       <div className="grid gap-3 sm:grid-cols-3">
         <label>Consoles (PS5)<input type="number" className={`${input} mt-1 w-full`} value={cfg.consoles} onChange={(e) => set({ consoles: num(e.target.value, 1, 20) })} /></label>
         <label>Match length (minutes)<input type="number" className={`${input} mt-1 w-full`} value={cfg.match_minutes} onChange={(e) => set({ match_minutes: num(e.target.value, 1, 120) })} /></label>
@@ -148,6 +124,45 @@ export function SchedulePanel({ t, matches, onChanged }: { t: TournamentRow; mat
           <button type="button" className="rounded bg-gray-700 px-3 py-1" onClick={() => set({ breaks: [...cfg.breaks, { start: '13:30', end: '14:30', label: 'Break' }] })}>+ Add a break</button>
         </div>
       </div>
+
+    </div>
+  )
+}
+
+/** Admin: set consoles, match length, buffer, opening hours and breaks, then plan (or re-plan from now). */
+export function SchedulePanel({ t, matches, onChanged }: { t: TournamentRow; matches: Match[]; onChanged: () => Promise<void> }) {
+  const [s, setS] = useState<ScheduleSettings | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // what was saved last time, else sensible defaults
+  useEffect(() => {
+    let live = true
+    api.scheduleSettings(t.id).then((r) => live && setS(r.settings ?? defaultSchedule(t))).catch(() => live && setS(defaultSchedule(t)))
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t.id])
+  const cfg = s ?? defaultSchedule(t)
+  const set = (patch: Partial<ScheduleSettings>) => setS({ ...cfg, ...patch })
+  const toPlay = matches.filter((m) => !['bye', 'completed'].includes(m.status)).length
+
+  const plan = async (replan: boolean) => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const r = await api.planSchedule(t.id, cfg, replan)
+      setMsg({ ok: r.unscheduled === 0, text: r.unscheduled ? `${r.scheduled} matches planned, but ${r.unscheduled} do not fit in the days and hours you set. Add a day or longer hours and plan again.` : `Done: ${r.scheduled} matches planned${r.first ? `, from ${r.first.slice(11)} on ${r.first.slice(0, 10)} to ${r.last?.slice(11)} on ${r.last?.slice(0, 10)}` : ''}.` })
+      await onChanged()
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-4 text-sm">
+      <ScheduleFields cfg={cfg} set={set} toPlay={toPlay} />
 
       <div className="flex flex-wrap items-center gap-2">
         <button disabled={busy || matches.length === 0} className="rounded bg-green-600 px-3 py-1.5 font-medium text-white disabled:opacity-50" onClick={() => plan(false)}>Plan the schedule</button>
