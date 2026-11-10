@@ -262,12 +262,55 @@ describe('bracket', () => {
     expect(args.p_matches).toHaveLength(4)
     expect(args.p_seeds).toEqual([1, 2, 3, 4].map((n) => ({ id: id(n), seed: n })))
   })
+  const SCHEDULE = { consoles: 4, match_minutes: 3, buffer_minutes: 1, days: [{ date: '2026-11-14', start: '11:00', end: '18:00' }], breaks: [{ start: '13:30', end: '14:30', label: 'Lunch' }] }
+  it('previews the approximate time and console of every match when match times are given', async () => {
+    const f = mk({}, players(8))
+    const p = await previewBracket('t1', undefined, f.db, SCHEDULE)
+    const real = p.matches.filter((m) => m.status !== 'bye')
+    const slot = (round: number, bracket = 'main') => real.filter((m) => m.round === round && m.bracket === bracket)
+    expect(real.every((m) => m.scheduled_at && m.console_no)).toBe(true)
+    // 4 quarter-finals on 4 consoles at 11:00 IST (05:30 UTC), semis one slot later (4 minutes), the final and third place after that
+    expect(slot(1).map((m) => [m.scheduled_at, m.console_no])).toEqual([1, 2, 3, 4].map((c) => ['2026-11-14T05:30:00.000Z', c]))
+    expect(slot(2).every((m) => m.scheduled_at === '2026-11-14T05:34:00.000Z')).toBe(true)
+    expect(slot(3).every((m) => m.scheduled_at === '2026-11-14T05:38:00.000Z')).toBe(true)
+    expect(p.schedule).toMatchObject({ scheduled: 8, unscheduled: 0, first: '2026-11-14 11:00', last: '2026-11-14 11:08' })
+    // the settings are remembered so Generate uses them
+    expect(f.log.some((e) => e.table === 'tournaments' && e.calls.some((c) => c.method === 'update'))).toBe(true)
+  })
+  it('gives no times when no match times are given', async () => {
+    const p = await previewBracket('t1', undefined, mk({}, players(4)).db)
+    expect(p.schedule).toBeNull()
+    expect(p.matches.some((m) => m.scheduled_at)).toBe(false)
+  })
+  it('plans the real bracket with the same settings right after generating it', async () => {
+    const f = fakeDb({
+      tables: {
+        tournament_overview: { data: { ...T } },
+        tournament_entrants: { data: players(4) },
+        tournament_matches: { data: [{ id: 'm1', round: 1, position: 1, bracket: 'main', status: 'ready' }, { id: 'm2', round: 1, position: 2, bracket: 'main', status: 'ready' }, { id: 'm3', round: 2, position: 1, bracket: 'main', status: 'pending' }] },
+        tournaments: { data: { id: 't1', schedule_settings: SCHEDULE } },
+      },
+      rpcs: { save_bracket: { data: 3 }, save_match_schedule: { data: 3 } },
+    })
+    await getSafe(() => startBracket('t1', undefined, f.db))
+    const items = (rpcArgs(f.log, 'save_match_schedule') as { p_items: { id: string; at: string; console: number }[] }).p_items
+    expect(items.map((i) => [i.id, i.at, i.console])).toEqual([['m1', '2026-11-14T05:30:00.000Z', 1], ['m2', '2026-11-14T05:30:00.000Z', 2], ['m3', '2026-11-14T05:34:00.000Z', 1]])
+  })
+  it('still makes the bracket when the match times cannot be planned', async () => {
+    const f = fakeDb({
+      tables: { tournament_overview: { data: { ...T } }, tournament_entrants: { data: players(4) }, tournament_matches: { data: [] }, tournaments: { data: { id: 't1', schedule_settings: SCHEDULE } } },
+      rpcs: { save_bracket: { data: 3 } },
+    })
+    await getSafe(() => startBracket('t1', undefined, f.db))
+    expect(rpcArgs(f.log, 'save_bracket')).toBeTruthy()
+  })
   it('turns database refusals into clear messages', async () => {
     const f = mk({}, players(4), { error: { message: 'ALREADY_STARTED' } })
     await expect(startBracket('t1', undefined, f.db)).rejects.toMatchObject({ status: 400, message: expect.stringContaining('Undo the results') })
   })
   it('accepts an empty options object', () => {
     expect(bracketSchema.parse({})).toEqual({})
+    expect(() => bracketSchema.parse({ schedule: { consoles: 0 } })).toThrow()
     expect(bracketSchema.parse(undefined)).toEqual({})
     expect(() => bracketSchema.parse({ order: ['nope'] })).toThrow()
   })

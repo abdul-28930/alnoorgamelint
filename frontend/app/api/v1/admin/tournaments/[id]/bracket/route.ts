@@ -9,6 +9,6 @@ export const dynamic = 'force-dynamic'
 // without it the tournament's seeding mode decides. Allowed again until the first match is played.
 export const POST = route(async (req, ctx: { params: { id: string } }) => {
   await requireRole(req, ['admin'])
-  const { order } = await parseJsonOptional(req, bracketSchema)
-  return startBracket(uuidParam.parse(ctx.params.id), order)
+  const { order, schedule } = await parseJsonOptional(req, bracketSchema)
+  return startBracket(uuidParam.parse(ctx.params.id), order, undefined, schedule)
 })
