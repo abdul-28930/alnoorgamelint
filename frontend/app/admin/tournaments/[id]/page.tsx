@@ -264,7 +264,7 @@ export default function ManageTournamentPage() {
             <div className="rounded-lg bg-gray-900 p-3 text-center"><div className="text-2xl font-bold text-purple-400">{t.view_count}</div><div className="text-xs text-gray-400">views</div></div>
           </div>
 
-          {d.days && <DaysBar info={d.days} currentId={id} base="/admin/tournaments" />}
+          {d.days && <DaysBar info={d.days} currentId={id} base="/admin/tournaments" onSaved={load} />}
           {(d.final_ranking?.length ?? 0) > 0 && <div className="mb-6"><FinalRanking rows={d.final_ranking ?? []} /></div>}
 
           {!started && !d.days && t.team_size === 1 && t.registered_count + t.waitlist_count > 0 && (

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { api, slotParts, type DaysInfo, type RankedPlayer, type TournamentRow } from '@/lib/tournaments'
+import { api, timeRange, toIstInput, type DayInfo, type DaysInfo, type RankedPlayer, type TournamentRow } from '@/lib/tournaments'
 
 const ICON: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' }
 
@@ -26,7 +26,7 @@ export function FinalRanking({ rows, title = 'Final standings' }: { rows: Ranked
 }
 
 /** The days of a tournament played over several days, with their counts and winners. `base` is '/admin/tournaments' or '/tournaments'. */
-export function DaysBar({ info, currentId, base, publicView = false }: { info: DaysInfo; currentId: string; base: string; publicView?: boolean }) {
+export function DaysBar({ info, currentId, base, publicView = false, onSaved }: { info: DaysInfo; currentId: string; base: string; publicView?: boolean; onSaved?: () => Promise<void> }) {
   return (
     <div className="mb-6 rounded-lg bg-gray-900 p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-gray-300">
@@ -34,11 +34,11 @@ export function DaysBar({ info, currentId, base, publicView = false }: { info: D
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {info.days.map((d) => {
-          const when = slotParts(d.starts_at)
+          const when = timeRange(d.starts_at, d.ends_at)
           return (
             <div key={d.id} className={`rounded-lg border p-3 ${d.id === currentId ? 'border-cyan-500 bg-cyan-900/20' : 'border-gray-700'}`}>
               <div className="flex items-center justify-between gap-2">
-                <div className="font-semibold">Day {d.day_no}{when ? <span className="font-normal text-gray-400"> · {when.day}, {when.time}</span> : null}</div>
+                <div className="font-semibold">Day {d.day_no}{when ? <span className="font-normal text-gray-400"> · {when}</span> : null}</div>
                 <span className="text-xs uppercase text-gray-400">{d.status}</span>
               </div>
               <div className="mt-1 text-sm text-gray-300">{d.registered_count}/{d.max_players} players{d.waitlist_count ? ` · ${d.waitlist_count} waiting` : ''}</div>
@@ -46,6 +46,7 @@ export function DaysBar({ info, currentId, base, publicView = false }: { info: D
               {d.id !== currentId && (publicView && d.status === 'draft'
                 ? <div className="mt-2 text-sm text-gray-400">Not open yet</div>
                 : <Link className="mt-2 inline-block rounded bg-cyan-700 px-3 py-1 text-sm text-white" href={`${base}/${d.id}`}>Open day {d.day_no}</Link>)}
+              {!publicView && onSaved && <DayTimes day={d} onSaved={onSaved} />}
               {!publicView && d.status === 'draft' && <div className="mt-1 text-xs text-yellow-300">Draft: players cannot see this day until you open it.</div>}
             </div>
           )
@@ -105,6 +106,41 @@ export function SplitPanel({ t, onDone }: { t: TournamentRow; onDone: () => Prom
         }}>Split into {days} days</button>
       </div>
       {error && <p className="text-red-400">{error}</p>}
+    </div>
+  )
+}
+
+/** Admin: set when a day starts and about when it ends (shown to players on the tournament pages). */
+function DayTimes({ day, onSaved }: { day: DayInfo; onSaved: () => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [start, setStart] = useState(toIstInput(day.starts_at))
+  const [end, setEnd] = useState(toIstInput(day.ends_at))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const input = 'rounded border border-gray-600 bg-gray-800 px-2 py-1.5 text-sm text-white'
+
+  if (!open) return <button className="mt-2 ml-2 rounded bg-gray-700 px-3 py-1 text-sm text-white" onClick={() => { setStart(toIstInput(day.starts_at)); setEnd(toIstInput(day.ends_at)); setOpen(true) }}>Edit time</button>
+  return (
+    <div className="mt-2 space-y-2 rounded bg-gray-800 p-3 text-sm">
+      <label className="block">Starts (IST)<input type="datetime-local" className={`${input} mt-1 block w-full`} value={start} onChange={(e) => setStart(e.target.value)} /></label>
+      <label className="block">Expected to end around (IST)<input type="datetime-local" className={`${input} mt-1 block w-full`} value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+      {error && <p className="text-red-400">{error}</p>}
+      <div className="flex gap-2">
+        <button disabled={busy} className="rounded bg-green-600 px-3 py-1 text-white disabled:opacity-50" onClick={async () => {
+          setBusy(true)
+          setError(null)
+          try {
+            await api.update(day.id, { starts_at: start || null, ends_at: end || null })
+            await onSaved()
+            setOpen(false)
+          } catch (e) {
+            setError((e as Error).message)
+          } finally {
+            setBusy(false)
+          }
+        }}>Save</button>
+        <button disabled={busy} className="rounded bg-gray-700 px-3 py-1 text-white" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
     </div>
   )
 }

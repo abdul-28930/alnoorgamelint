@@ -174,7 +174,7 @@ export default function TournamentPage() {
 
         {(t.description || t.prize_details || t.rules || t.starts_at) && (
           <section className="mb-8 space-y-3 text-gray-300">
-            {t.starts_at && <p>🗓 Starts {new Date(t.starts_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST</p>}
+            {t.starts_at && <p>🗓 Starts {new Date(t.starts_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST{t.ends_at ? `, expected to end around ${new Date(t.ends_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', ...(new Date(t.ends_at).getTime() - new Date(t.starts_at).getTime() > 86_400_000 ? { dateStyle: 'medium' as const } : {}), timeStyle: 'short' })} IST` : ''}</p>}
             {t.description && <p>{t.description}</p>}
             {t.prize_details && <p><b className="text-cp-yellow">Prizes:</b> {t.prize_details}</p>}
           </section>

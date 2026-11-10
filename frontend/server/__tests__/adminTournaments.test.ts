@@ -44,6 +44,13 @@ describe('tournament settings', () => {
     await expect(run({ status: 'active', started_at: 'x' }, { tournament_type: 'league' })).rejects.toMatchObject({ status: 400, message: expect.stringContaining('tournament_type') })
     await expect(run({ status: 'active', started_at: 'x' }, { best_of: 3 })).resolves.toBeTruthy() // unchanged value is fine
   })
+  it('takes an expected end time and refuses one before the start', async () => {
+    const ok = await run({ starts_at: '2026-11-14T05:30:00Z' }, { ends_at: '2026-11-14T18:00' }) // 6:00 PM IST
+    expect(ok.log.find((e) => e.table === 'tournaments')!.calls.find((c) => c.method === 'update')!.args[0]).toEqual({ ends_at: '2026-11-14T12:30:00.000Z' })
+    await expect(run({ starts_at: '2026-11-14T05:30:00Z' }, { ends_at: '2026-11-14T10:00' })).rejects.toMatchObject({ status: 400, message: expect.stringContaining('after the start') })
+    await expect(run({ ends_at: '2026-11-14T12:30:00Z' }, { starts_at: '2026-11-14T20:00' })).rejects.toMatchObject({ status: 400 }) // moving the start past the end
+    await expect(run({}, { ends_at: null })).resolves.toBeTruthy() // clearing it is fine
+  })
   it('will not drop the limit below the players already in', async () => {
     await expect(run({ registered_count: 6 }, { max_players: 4 })).rejects.toMatchObject({ status: 400 })
     await expect(run({}, {})).rejects.toMatchObject({ message: 'Nothing to update' })

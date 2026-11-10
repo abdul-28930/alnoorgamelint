@@ -34,3 +34,16 @@ describe('sortEntrants', () => {
     expect(rows).toEqual(copy)
   })
 })
+
+import { timeRange } from './tournaments'
+
+describe('timeRange', () => {
+  it('writes the day, the start and about when it ends, on the café clock', () => {
+    expect(timeRange('2026-11-14T05:30:00Z', '2026-11-14T12:30:00Z')).toBe('Sat 14 Nov, 11:00 AM to about 6:00 PM')
+  })
+  it('shows the end day when it is another day, and just the start when there is no end', () => {
+    expect(timeRange('2026-11-14T05:30:00Z', '2026-11-15T05:30:00Z')).toBe('Sat 14 Nov, 11:00 AM to about Sun 15 Nov, 11:00 AM')
+    expect(timeRange('2026-11-14T05:30:00Z', null)).toBe('Sat 14 Nov, 11:00 AM')
+    expect(timeRange(null, '2026-11-14T12:30:00Z')).toBe('')
+  })
+})

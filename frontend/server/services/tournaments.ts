@@ -40,7 +40,7 @@ function assertRegistrationOpen(t: Row) {
 export async function listPublicTournaments(db: SupabaseClient = getSupabase()) {
   const { data, error } = await db.from('tournament_overview').select('*').neq('status', 'draft').order('created_at', { ascending: false })
   if (error) throw fail('Failed to load tournaments', error)
-  const keep = ['id', 'name', 'game', 'platform', 'status', 'tournament_type', 'max_players', 'team_size', 'best_of', 'entry_fee', 'prize_pool', 'description', 'banner_image', 'poster_image', 'starts_at', 'registration_closes_at', 'registered_count', 'waitlist_count', 'view_count', 'champion_entrant_id', 'parent_id', 'day_no']
+  const keep = ['id', 'name', 'game', 'platform', 'status', 'tournament_type', 'max_players', 'team_size', 'best_of', 'entry_fee', 'prize_pool', 'description', 'banner_image', 'poster_image', 'starts_at', 'ends_at', 'registration_closes_at', 'registered_count', 'waitlist_count', 'view_count', 'champion_entrant_id', 'parent_id', 'day_no']
   // a tournament split over days is shown as its days
   return ((data ?? []) as Row[]).filter((t) => !t.split_days).map((t) => Object.fromEntries(keep.map((k) => [k, t[k] ?? null])))
 }
@@ -91,7 +91,7 @@ export async function getPublicTournament(id: string, userId: string | null, db:
       id: t.id, name: t.name, game: t.game, platform: t.platform, status: t.status, tournament_type: t.tournament_type,
       max_players: t.max_players, team_size: t.team_size, best_of: t.best_of, third_place_match: t.third_place_match,
       entry_fee: t.entry_fee, prize_pool: t.prize_pool, prize_details: t.prize_details, rules: t.rules, description: t.description,
-      banner_image: t.banner_image, poster_image: t.poster_image, starts_at: t.starts_at, registration_closes_at: t.registration_closes_at,
+      banner_image: t.banner_image, poster_image: t.poster_image, starts_at: t.starts_at, ends_at: t.ends_at ?? null, registration_closes_at: t.registration_closes_at,
       registered_count: t.registered_count, waitlist_count: t.waitlist_count, view_count: t.view_count,
       champion_entrant_id: t.champion_entrant_id, split_days: t.split_days ?? null, day_no: t.day_no ?? null, parent_id: t.parent_id ?? null,
     },
