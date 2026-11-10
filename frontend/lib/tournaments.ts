@@ -28,6 +28,7 @@ export interface TournamentRow {
   view_count: number
   champion_entrant_id?: string | null
   starts_at?: string | null
+  ends_at?: string | null
   registration_closes_at?: string | null
   parent_id?: string | null
   day_no?: number | null
@@ -36,7 +37,7 @@ export interface TournamentRow {
 
 export interface RankedPlayer { place: number; entrant_id: string; display_name: string | null; reason: string }
 
-export interface DayInfo { id: string; name: string; day_no: number | null; status: string; max_players: number; registered_count: number; waitlist_count: number; starts_at: string | null; champion_name: string | null }
+export interface DayInfo { id: string; name: string; day_no: number | null; status: string; max_players: number; registered_count: number; waitlist_count: number; starts_at: string | null; ends_at: string | null; champion_name: string | null }
 export interface DaysInfo { parent: { id: string; name: string } | null; days: DayInfo[] }
 
 export interface Entrant {
@@ -332,4 +333,13 @@ export function sortEntrants<T extends { display_name: string; registered_at?: s
   if (sort === 'az') return copy.sort((a, b) => a.display_name.localeCompare(b.display_name, 'en', { sensitivity: 'base' }) || time(a).localeCompare(time(b)))
   if (sort === 'newest') return copy.sort((a, b) => time(b).localeCompare(time(a)))
   return copy.sort((a, b) => time(a).localeCompare(time(b)))
+}
+
+/** "Sat 14 Nov, 11:00 AM to about 6:00 PM" (the end is dropped when it is not set). */
+export function timeRange(startsAt: string | null | undefined, endsAt: string | null | undefined): string {
+  const s = slotParts(startsAt)
+  if (!s) return ''
+  const e = slotParts(endsAt)
+  if (!e) return `${s.day}, ${s.time}`
+  return e.key === s.key ? `${s.day}, ${s.time} to about ${e.time}` : `${s.day}, ${s.time} to about ${e.day}, ${e.time}`
 }

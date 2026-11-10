@@ -9,7 +9,7 @@ const input = 'w-full rounded border border-gray-600 bg-gray-800 px-3 py-2 text-
 export function EditDetails({ t, started, busy, onSave }: { t: TournamentRow; started: boolean; busy: boolean; onSave: (changes: Record<string, unknown>) => void }) {
   const initial = {
     name: t.name, game: t.game, platform: t.platform, max_players: t.max_players, entry_fee: t.entry_fee, prize_pool: t.prize_pool,
-    starts_at: toIstInput(t.starts_at), registration_closes_at: toIstInput(t.registration_closes_at),
+    starts_at: toIstInput(t.starts_at), ends_at: toIstInput(t.ends_at), registration_closes_at: toIstInput(t.registration_closes_at),
     prize_details: t.prize_details ?? '', description: t.description ?? '',
   }
   const [f, setF] = useState(initial)
@@ -20,7 +20,7 @@ export function EditDetails({ t, started, busy, onSave }: { t: TournamentRow; st
     const body: Record<string, unknown> = {}
     changed.forEach((k) => {
       const v = f[k]
-      body[k] = ['starts_at', 'registration_closes_at', 'prize_details', 'description'].includes(k) && v === '' ? null : v
+      body[k] = ['starts_at', 'ends_at', 'registration_closes_at', 'prize_details', 'description'].includes(k) && v === '' ? null : v
     })
     if (body.description === null) body.description = ''
     onSave(body)
@@ -32,6 +32,7 @@ export function EditDetails({ t, started, busy, onSave }: { t: TournamentRow; st
         <label className="text-sm">Name<input className={input} value={f.name} onChange={(e) => set('name', e.target.value)} /></label>
         <label className="text-sm">Game<input className={input} value={f.game} onChange={(e) => set('game', e.target.value)} /></label>
         <label className="text-sm">Starts (IST)<input type="datetime-local" className={input} value={f.starts_at} onChange={(e) => set('starts_at', e.target.value)} /></label>
+        <label className="text-sm">Expected to end around (IST)<input type="datetime-local" className={input} value={f.ends_at} onChange={(e) => set('ends_at', e.target.value)} /></label>
         <label className="text-sm">Registration closes (IST)<input type="datetime-local" className={input} value={f.registration_closes_at} onChange={(e) => set('registration_closes_at', e.target.value)} /></label>
         <label className="text-sm">Platform
           <select className={input} value={f.platform} onChange={(e) => set('platform', e.target.value)}>

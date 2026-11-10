@@ -105,6 +105,7 @@ const settings = {
   banner_image: z.string().trim().max(500).nullable(),
   poster_image: z.string().trim().max(500).nullable(),
   starts_at: instant.nullable(),
+  ends_at: instant.nullable(),
   registration_closes_at: instant.nullable(),
 }
 
@@ -127,6 +128,7 @@ export const tournamentSchema = z.object({
   banner_image: settings.banner_image.default(''),
   poster_image: settings.poster_image.optional(),
   starts_at: settings.starts_at.optional(),
+  ends_at: settings.ends_at.optional(),
   registration_closes_at: settings.registration_closes_at.optional(),
 })
 export type TournamentInput = z.infer<typeof tournamentSchema>
@@ -162,7 +164,15 @@ export async function updateTournament(id: string, input: z.infer<typeof tournam
   if (typeof changes.max_players === 'number' && changes.max_players < t.registered_count) {
     throw badRequest(`${t.registered_count} entrants are already registered; remove some before lowering the limit`)
   }
+  // the expected end has to come after the start (whichever of the two is being changed)
+  const start = 'starts_at' in changes ? changes.starts_at : t.starts_at
+  const end = 'ends_at' in changes ? changes.ends_at : t.ends_at
+  if (start && end && new Date(end as string).getTime() <= new Date(start as string).getTime()) throw badRequest('The end time must be after the start time')
+
   const { data, error } = await db.from('tournaments').update(changes).eq('id', id).select('id').maybeSingle()
+  if (error && 'ends_at' in changes && /ends_at|column|schema cache/i.test(error.message ?? '')) {
+    throw new ApiError(503, 'The database is missing the end time column. Run sql/setup/22_tournament_end_time.sql in Supabase, then try again.')
+  }
   if (error) throw fail('Failed to update the tournament', error)
   if (!data) throw notFound('Tournament not found')
   if (typeof changes.max_players === 'number') await promoteWaitlist(db, id)
@@ -777,7 +787,7 @@ export async function getTournamentDetail(tournamentId: string, db: SupabaseClie
   }
 }
 
-export interface DayInfo { id: string; name: string; day_no: number | null; status: string; max_players: number; registered_count: number; waitlist_count: number; starts_at: string | null; champion_name: string | null }
+export interface DayInfo { id: string; name: string; day_no: number | null; status: string; max_players: number; registered_count: number; waitlist_count: number; starts_at: string | null; ends_at: string | null; champion_name: string | null }
 
 /**
  * For a tournament split over days: its days (when it is the hub) or its sibling days and the hub (when it is one day).
@@ -787,7 +797,7 @@ async function daysInfo(db: SupabaseClient, t: Row): Promise<{ parent: { id: str
   const hubId = (t.split_days ? t.id : t.parent_id) as string | null | undefined
   if (!hubId) return null
   const [{ data: rows }, { data: hub }] = await Promise.all([
-    db.from('tournament_overview').select('id, name, day_no, status, max_players, registered_count, waitlist_count, starts_at, champion_entrant_id').eq('parent_id', hubId).order('day_no'),
+    db.from('tournament_overview').select('*').eq('parent_id', hubId).order('day_no'),
     t.split_days ? Promise.resolve({ data: null }) : db.from('tournaments').select('id, name').eq('id', hubId).maybeSingle(),
   ])
   const list = (rows ?? []) as Row[]
@@ -798,7 +808,7 @@ async function daysInfo(db: SupabaseClient, t: Row): Promise<{ parent: { id: str
     parent: hub ? { id: hub.id as string, name: hub.name as string } : null,
     days: list.map((r) => ({
       id: r.id, name: r.name, day_no: r.day_no ?? null, status: r.status, max_players: r.max_players, registered_count: r.registered_count,
-      waitlist_count: r.waitlist_count, starts_at: r.starts_at ?? null, champion_name: r.champion_entrant_id ? champName.get(r.champion_entrant_id) ?? null : null,
+      waitlist_count: r.waitlist_count, starts_at: r.starts_at ?? null, ends_at: r.ends_at ?? null, champion_name: r.champion_entrant_id ? champName.get(r.champion_entrant_id) ?? null : null,
     })),
   }
 }
