@@ -51,6 +51,74 @@ function Walkin({ packages, onDone }: { packages: GtaPackage[]; onDone: () => Pr
   )
 }
 
+const istNowMs = () => Date.now() + 330 * 60 * 1000
+const istMs = (t: string) => new Date(`${t.slice(0, 10)}T${t.slice(11, 19)}Z`).getTime()
+const clock = (sec: number) => {
+  const s = Math.max(0, Math.floor(sec))
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`
+}
+
+/** Ticks every second while the timer runs: time already banked plus time since the last start. */
+function LiveTimer({ v }: { v: GtaVisit }) {
+  const [, tick] = useState(0)
+  useEffect(() => { if (v.status !== 'ONGOING') return; const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t) }, [v.status])
+  const running = v.status === 'ONGOING' && v.timer_started_at ? (istNowMs() - istMs(v.timer_started_at)) / 1000 : 0
+  const total = Number(v.timer_total_seconds || 0) + running
+  const left = v.duration_minutes * 60 - total
+  return (
+    <div className="text-right">
+      <div className={`font-mono text-2xl font-bold ${v.status === 'ONGOING' ? (left < 0 ? 'text-red-400' : 'text-green-300') : 'text-gray-300'}`}>{clock(total)}</div>
+      <div className={`text-xs ${left < 0 ? 'text-red-300' : 'text-gray-400'}`}>{left < 0 ? `${clock(-left)} over` : `${clock(left)} left`}</div>
+    </div>
+  )
+}
+
+function ScheduleRow({ v, packages, busy, run, load }: { v: GtaVisit; packages: GtaPackage[]; busy: boolean; run: (fn: () => Promise<unknown>, ok: string, after?: () => Promise<void> | void) => Promise<void>; load: () => Promise<void> }) {
+  const [adding, setAdding] = useState(false)
+  const [addon, setAddon] = useState('')
+  const [startAt, setStartAt] = useState('')
+  const pass = v.pass
+  const choices = packages.filter((p) => p.active && p.players === (pass?.players ?? 1))
+  const picked = packages.find((p) => p.id === addon)
+  const short = !!picked && picked.hours <= 5
+  return (
+    <li className="rounded border border-cp-cyan/20 bg-cp-gray/20 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="font-semibold">{clock12(v.start_at.slice(11, 16))} – {clock12(v.end_at.slice(11, 16))} <span className="text-gray-400">({hoursLabel(v.duration_minutes)})</span></div>
+          <div className="text-sm text-gray-300">{pass?.customer ?? 'Customer'}{pass?.customer_phone ? ` · ${pass.customer_phone}` : ''} · {pass?.package_name} {pass?.players === 2 ? '(Duo)' : '(Solo)'}</div>
+          {pass && <div className="text-xs text-gray-400">{pass.payment_status}</div>}
+        </div>
+        {(v.status === 'ONGOING' || v.status === 'ENDED') && <LiveTimer v={v} />}
+        <div className="flex items-center gap-2">
+          <span className={`rounded px-2 py-0.5 text-xs font-bold ${v.status === 'ONGOING' ? 'bg-green-600/30 text-green-300' : 'bg-gray-700 text-gray-200'}`}>{v.status}{v.status === 'ENDED' ? ` · ${hoursLabel(v.minutes_counted)}` : ''}</span>
+          {v.status === 'UPCOMING' && <button disabled={busy} className={`${btn} bg-green-600 text-white`} onClick={() => run(() => gtaAdmin.visit(v.id, 'start'), 'Timer started.', load)}>Start</button>}
+          {v.status === 'ONGOING' && <button disabled={busy} className={`${btn} bg-orange-600 text-white`} onClick={() => run(() => gtaAdmin.visit(v.id, 'stop'), 'Timer stopped.', load)}>Stop</button>}
+          {(v.status === 'UPCOMING' || v.status === 'ONGOING') && <button disabled={busy} className={`${btn} bg-red-900 text-white`} onClick={() => { if (confirm('Cancel this visit?')) run(() => gtaAdmin.visit(v.id, 'cancel'), 'Visit cancelled.', load) }}>Cancel</button>}
+        </div>
+      </div>
+      {pass && (
+        <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-gray-800 pt-2 text-sm">
+          <label className="flex items-center gap-1 text-gray-200"><input type="checkbox" checked={pass.food_served} disabled={busy} onChange={(e) => run(() => gtaAdmin.food(v.pass_id, e.target.checked), e.target.checked ? 'Food marked as given.' : 'Food unmarked.', load)} /> Food given</label>
+          <button className={`${btn} bg-cp-cyan text-black`} onClick={() => setAdding(!adding)}>{adding ? 'Close add-on' : '+ Add-on hours'}</button>
+        </div>
+      )}
+      {adding && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <select className={input} value={addon} onChange={(e) => setAddon(e.target.value)}>
+            <option value="">Package…</option>
+            {choices.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.hours} h · {inr(p.price)}</option>)}
+          </select>
+          {short && <label className="text-gray-300">Start <input className={input} type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} /></label>}
+          <button disabled={busy || !addon || (short && !startAt)} className={`${btn} bg-green-600 text-white`}
+            onClick={() => run(() => gtaAdmin.addOn(v.pass_id, addon, short ? `${startAt.replace('T', ' ')}:00` : undefined), 'Add-on package sold.', async () => { setAdding(false); setAddon(''); await load() })}>Sell add-on</button>
+        </div>
+      )}
+    </li>
+  )
+}
+
 function Schedule({ packages }: { packages: GtaPackage[] }) {
   const [date, setDate] = useState(todayIst())
   const [visits, setVisits] = useState<GtaVisit[]>([])
@@ -70,21 +138,7 @@ function Schedule({ packages }: { packages: GtaPackage[] }) {
       <Msg m={msg} />
       {visits.length === 0 ? <p className="text-gray-400">No visits on this day.</p> : (
         <ul className="space-y-2">
-          {visits.map((v) => (
-            <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-cp-cyan/20 bg-cp-gray/20 p-3">
-              <div>
-                <div className="font-semibold">{clock12(v.start_at.slice(11, 16))} – {clock12(v.end_at.slice(11, 16))} <span className="text-gray-400">({hoursLabel(v.duration_minutes)})</span></div>
-                <div className="text-sm text-gray-300">{v.pass?.customer ?? 'Customer'}{v.pass?.customer_phone ? ` · ${v.pass.customer_phone}` : ''} · {v.pass?.package_name} {v.pass?.players === 2 ? '(Duo)' : '(Solo)'}</div>
-                {v.pass && <div className="text-xs text-gray-400">{v.pass.payment_status}{v.pass.food_served ? ' · food served' : ' · food pending'}</div>}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`rounded px-2 py-0.5 text-xs font-bold ${v.status === 'ONGOING' ? 'bg-green-600/30 text-green-300' : 'bg-gray-700 text-gray-200'}`}>{v.status}{v.status === 'ENDED' ? ` · ${hoursLabel(v.minutes_counted)}` : ''}</span>
-                {v.status === 'UPCOMING' && <button disabled={busy} className={`${btn} bg-green-600 text-white`} onClick={() => run(() => gtaAdmin.visit(v.id, 'start'), 'Timer started.', load)}>Start</button>}
-                {v.status === 'ONGOING' && <button disabled={busy} className={`${btn} bg-orange-600 text-white`} onClick={() => run(() => gtaAdmin.visit(v.id, 'stop'), 'Timer stopped.', load)}>Stop</button>}
-                {(v.status === 'UPCOMING' || v.status === 'ONGOING') && <button disabled={busy} className={`${btn} bg-red-900 text-white`} onClick={() => { if (confirm('Cancel this visit?')) run(() => gtaAdmin.visit(v.id, 'cancel'), 'Visit cancelled.', load) }}>Cancel</button>}
-              </div>
-            </li>
-          ))}
+          {visits.map((v) => <ScheduleRow key={v.id} v={v} packages={packages} busy={busy} run={run} load={load} />)}
         </ul>
       )}
     </div>
