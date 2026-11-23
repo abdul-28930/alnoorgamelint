@@ -20,6 +20,7 @@ export const ADMIN_NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
       { label: 'Bookings', href: '/admin/bookings', icon: CalendarDays },
       { label: 'Stations', href: '/admin/stations', icon: Gamepad2 },
+      { label: 'GTA VI', href: '/admin/gta', icon: Gamepad2 },
       { label: 'Receipts', href: '/admin/receipts', icon: Receipt },
     ],
   },

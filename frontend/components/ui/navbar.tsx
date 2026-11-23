@@ -10,6 +10,7 @@ export function NavBar() {
   
   const navLinks = [
     { name: 'Stations', href: '/stations' },
+    { name: 'GTA VI', href: '/gta' },
     { name: 'Tournaments', href: '/tournaments' },
     { name: 'Rewards', href: '/rewards' },
     { name: 'Bookings', href: '/bookings' },
