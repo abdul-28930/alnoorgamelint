@@ -51,8 +51,6 @@ function Walkin({ packages, onDone }: { packages: GtaPackage[]; onDone: () => Pr
   )
 }
 
-const istNowMs = () => Date.now() + 330 * 60 * 1000
-const istMs = (t: string) => new Date(`${t.slice(0, 10)}T${t.slice(11, 19)}Z`).getTime()
 const clock = (sec: number) => {
   const s = Math.max(0, Math.floor(sec))
   const p = (n: number) => String(n).padStart(2, '0')
@@ -63,7 +61,7 @@ const clock = (sec: number) => {
 function LiveTimer({ v }: { v: GtaVisit }) {
   const [, tick] = useState(0)
   useEffect(() => { if (v.status !== 'ONGOING') return; const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t) }, [v.status])
-  const running = v.status === 'ONGOING' && v.timer_started_at ? (istNowMs() - istMs(v.timer_started_at)) / 1000 : 0
+  const running = v.status === 'ONGOING' && v.timer_started_at ? (Date.now() - Date.parse(v.timer_started_at)) / 1000 : 0 // a real UTC timestamp, not IST text
   const total = Number(v.timer_total_seconds || 0) + running
   const left = v.duration_minutes * 60 - total
   return (
